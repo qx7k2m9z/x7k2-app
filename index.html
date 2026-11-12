@@ -17242,7 +17242,7 @@ React keys must be passed directly to JSX without using spread:
       if (raw) {
         const p = JSON.parse(raw);
         if (p && p.settings && p.session && Array.isArray(p.events) && typeof p.nextId === "number") {
-          if (p.cooldownDefaultV2 !== true) {
+          if (p.settings.cooldownMinutes !== 5 || p.cooldownDefaultV2 !== true) {
             p.settings.cooldownMinutes = 5;
             p.cooldownDefaultV2 = true;
             save(p);
@@ -17285,7 +17285,7 @@ React keys must be passed directly to JSX without using spread:
       }
     }
     return {
-      settings: { ...store.settings },
+      settings: { ...store.settings, cooldownMinutes: 5 },
       session: { ...store.session },
       totalPoints,
       todayPoints,
@@ -17313,7 +17313,7 @@ React keys must be passed directly to JSX without using spread:
       const store = load();
       store.settings = {
         sessionMinutes: args.sessionMinutes,
-        cooldownMinutes: args.cooldownMinutes,
+        cooldownMinutes: 5,
         challengeMode: args.challengeMode
       };
       save(store);
@@ -17364,7 +17364,7 @@ React keys must be passed directly to JSX without using spread:
         store.session = {
           startedAt: null,
           limitMinutes: null,
-          cooldownUntil: new Date(Date.now() + store.settings.cooldownMinutes * 60000).toISOString()
+          cooldownUntil: new Date(Date.now() + 300000).toISOString()
         };
         save(store);
       }
@@ -17372,7 +17372,7 @@ React keys must be passed directly to JSX without using spread:
     },
     async clearCooldown() {
       const store = load();
-      if (store.session.cooldownUntil) {
+      if (store.session.cooldownUntil && new Date(store.session.cooldownUntil).getTime() <= Date.now()) {
         store.session = { ...store.session, cooldownUntil: null };
         save(store);
       }
@@ -18831,8 +18831,17 @@ React keys must be passed directly to JSX without using spread:
       ]
     }, undefined, true, undefined, this);
   }
-  function ShogiChallenge({ band, onFinish, milestoneMax, gate, failRevealSeq, onAnswerClose }) {
+  function ShogiChallenge({ band, onFinish, milestoneMax, gate, failRevealSeq, onAnswerClose, cid }) {
+    const savedShogiRaw = import_react3.useMemo(() => loadGameState("shogi", cid, band), [cid, band]);
+    const savedProblem = import_react3.useMemo(() => {
+      if (!savedShogiRaw || typeof savedShogiRaw.problemId !== "number")
+        return null;
+      return [...SHOGI_PROBLEM_POOL, ...SHOGI_DIFFICULT_POOL].find((pr) => pr.id === savedShogiRaw.problemId) ?? null;
+    }, [savedShogiRaw]);
+    const savedShogi = savedProblem && savedShogiRaw.pos && Array.isArray(savedShogiRaw.pos.board) && savedShogiRaw.pos.hands ? savedShogiRaw : null;
     const problem = import_react3.useMemo(() => {
+      if (savedProblem)
+        return savedProblem;
       if (gate !== "practice") {
         if (milestoneMax) {
           const mpool = SHOGI_DIFFICULT_POOL.length > 0 ? SHOGI_DIFFICULT_POOL : SHOGI_PROBLEM_POOL;
@@ -18846,13 +18855,13 @@ React keys must be passed directly to JSX without using spread:
       const pool = difficult && SHOGI_DIFFICULT_POOL.length > 0 ? SHOGI_DIFFICULT_POOL : SHOGI_PROBLEM_POOL;
       return pool[Math.floor(Math.random() * pool.length)];
     }, []);
-    const [pos, setPos] = import_react3.useState(() => problem.initial);
-    const [phase, setPhase] = import_react3.useState(1);
-    const [misses, setMisses] = import_react3.useState(0);
+    const [pos, setPos] = import_react3.useState(() => savedShogi ? savedShogi.pos : problem.initial);
+    const [phase, setPhase] = import_react3.useState(() => savedShogi && savedShogi.phase === 3 ? 3 : 1);
+    const [misses, setMisses] = import_react3.useState(() => savedShogi && typeof savedShogi.misses === "number" ? savedShogi.misses : 0);
     const [selected, setSelected] = import_react3.useState(null);
     const [pending, setPending] = import_react3.useState(null);
-    const [msg, setMsg] = import_react3.useState("1手目：王手をかけよう");
-    const [log, setLog] = import_react3.useState([]);
+    const [msg, setMsg] = import_react3.useState(() => savedShogi && savedShogi.phase === 3 ? "玉が応手した。3手目：詰ませよう！" : "1手目：王手をかけよう");
+    const [log, setLog] = import_react3.useState(() => savedShogi && Array.isArray(savedShogi.log) ? savedShogi.log : []);
     const [showSolution, setShowSolution] = import_react3.useState(false);
     const [confirming, setConfirming] = import_react3.useState(false);
     const onRevealConfirm = () => {
@@ -18875,11 +18884,21 @@ React keys must be passed directly to JSX without using spread:
       setPending(null);
       setFailReveal(true);
     }, [failRevealSeq]);
-    const [cleared, setCleared] = import_react3.useState(false);
+    const [cleared, setCleared] = import_react3.useState(() => !!(savedShogi && savedShogi.cleared));
     const doneRef = import_react3.useRef(false);
     const finishRef = import_react3.useRef(onFinish);
     finishRef.current = onFinish;
-    const prevToRef = import_react3.useRef(null);
+    const prevToRef = import_react3.useRef(savedShogi && savedShogi.prevTo ? savedShogi.prevTo : null);
+    import_react3.useEffect(() => {
+      saveGameState("shogi", cid, band, { problemId: problem.id, pos, phase, misses, log, cleared, prevTo: prevToRef.current });
+    }, [cid, band, problem, pos, phase, misses, log, cleared]);
+    import_react3.useEffect(() => {
+      if (savedShogi && savedShogi.cleared && !doneRef.current) {
+        doneRef.current = true;
+        const t = window.setTimeout(() => finishRef.current({ passed: true, score: 3 }), 400);
+        return () => window.clearTimeout(t);
+      }
+    }, []);
     const senteMoves = import_react3.useMemo(() => cleared ? [] : legalMoves(pos, "sente"), [pos, cleared]);
     const targets = import_react3.useMemo(() => {
       if (!selected)
@@ -19882,20 +19901,24 @@ React keys must be passed directly to JSX without using spread:
     f: { left: "0%", top: "8%", width: "14%", height: "38%" },
     g: { left: "18%", top: "45.5%", width: "64%", height: "9%" }
   };
-  function MatchChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
+  function MatchChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose, cid }) {
+    const savedMatchRaw = import_react3.useMemo(() => loadGameState("match", cid, band), [cid, band]);
+    const savedMatch = savedMatchRaw && Array.isArray(savedMatchRaw.initial) && savedMatchRaw.initial.length > 0 && Array.isArray(savedMatchRaw.pos) && savedMatchRaw.pos.length === savedMatchRaw.initial.length ? savedMatchRaw : null;
     const initial = import_react3.useMemo(() => {
+      if (savedMatch)
+        return savedMatch.initial;
       let g = matchGenerate(band);
       for (let i = 0; !g && i < 5; i++)
         g = matchGenerate(band);
       if (!g)
         g = matchGenerate(1);
       return g;
-    }, [band]);
-    const [pos, setPos] = import_react3.useState(() => initial.map((p) => ({ ...p })));
+    }, [band, savedMatch]);
+    const [pos, setPos] = import_react3.useState(() => savedMatch ? savedMatch.pos.map((p) => ({ ...p })) : initial.map((p) => ({ ...p })));
     const [sel, setSel] = import_react3.useState(null);
-    const [misses, setMisses] = import_react3.useState(0);
-    const [msg, setMsg] = import_react3.useState("マッチをタップで選び、置きたい場所をタップして動かそう");
-    const [cleared, setCleared] = import_react3.useState(false);
+    const [misses, setMisses] = import_react3.useState(() => savedMatch && typeof savedMatch.misses === "number" ? savedMatch.misses : 0);
+    const [msg, setMsg] = import_react3.useState(() => savedMatch && savedMatch.cleared ? "正しい式になりました！" : "マッチをタップで選び、置きたい場所をタップして動かそう");
+    const [cleared, setCleared] = import_react3.useState(() => !!(savedMatch && savedMatch.cleared));
     const [confirming, setConfirming] = import_react3.useState(false);
     const [revealed, setRevealed] = import_react3.useState(false);
     const [failReveal, setFailReveal] = import_react3.useState(false);
@@ -19917,6 +19940,17 @@ React keys must be passed directly to JSX without using spread:
     const doneRef = import_react3.useRef(false);
     const finishRef = import_react3.useRef(onFinish);
     finishRef.current = onFinish;
+    import_react3.useEffect(() => {
+      if (initial)
+        saveGameState("match", cid, band, { initial, pos, misses, cleared });
+    }, [cid, band, initial, pos, misses, cleared]);
+    import_react3.useEffect(() => {
+      if (savedMatch && savedMatch.cleared && !doneRef.current) {
+        doneRef.current = true;
+        const t = window.setTimeout(() => finishRef.current({ passed: true }), 400);
+        return () => window.clearTimeout(t);
+      }
+    }, []);
     const onStickTap = (pi, bit) => {
       if (doneRef.current || cleared)
         return;
@@ -21103,7 +21137,8 @@ React keys must be passed directly to JSX without using spread:
     gate,
     milestoneMax,
     failRevealSeq,
-    onAnswerClose
+    onAnswerClose,
+    cid
   }) {
     if (type === "shogi")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(ShogiChallenge, {
@@ -21112,7 +21147,8 @@ React keys must be passed directly to JSX without using spread:
         milestoneMax,
         gate,
         failRevealSeq,
-        onAnswerClose
+        onAnswerClose,
+        cid
       }, undefined, false, undefined, this);
     if (type === "rush")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(RushChallenge, {
@@ -21129,7 +21165,8 @@ React keys must be passed directly to JSX without using spread:
         onFinish,
         gate,
         failRevealSeq,
-        onAnswerClose
+        onAnswerClose,
+        cid
       }, undefined, false, undefined, this);
     if (type === "lights")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(LightsChallenge, {
@@ -21299,6 +21336,47 @@ React keys must be passed directly to JSX without using spread:
       return crypto.randomUUID();
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
+  var FLOW_STORE_KEY = "gatekeeper-home-flow-v1";
+  var GAME_STORE_PREFIX = "gatekeeper-home-game-";
+  function loadSavedFlow() {
+    try {
+      const raw = localStorage.getItem(FLOW_STORE_KEY);
+      if (!raw)
+        return null;
+      const v = JSON.parse(raw);
+      if (v && v.screen === "challenge" && v.flow && typeof v.flow === "object" && typeof v.flow.cid === "string" && typeof v.flow.type === "string" && typeof v.flow.phase === "string")
+        return v;
+    } catch {}
+    return null;
+  }
+  function saveFlowState(v) {
+    try {
+      if (v)
+        localStorage.setItem(FLOW_STORE_KEY, JSON.stringify(v));
+      else
+        localStorage.removeItem(FLOW_STORE_KEY);
+    } catch {}
+  }
+  function loadGameState(kind, cid, band) {
+    try {
+      if (!cid)
+        return null;
+      const raw = localStorage.getItem(GAME_STORE_PREFIX + kind);
+      if (!raw)
+        return null;
+      const v = JSON.parse(raw);
+      if (v && v.cid === cid && v.band === band && v.state && typeof v.state === "object")
+        return v.state;
+    } catch {}
+    return null;
+  }
+  function saveGameState(kind, cid, band, state) {
+    try {
+      if (!cid)
+        return;
+      localStorage.setItem(GAME_STORE_PREFIX + kind, JSON.stringify({ cid, band, state }));
+    } catch {}
+  }
   function App() {
     const queryClient = useQueryClient();
     const today = import_react4.useMemo(() => localDay(), []);
@@ -21306,8 +21384,8 @@ React keys must be passed directly to JSX without using spread:
       queryKey: ["state", today],
       queryFn: () => api.getState({ day: today })
     });
-    const [screen, setScreen] = import_react4.useState("home");
-    const [flow, setFlow] = import_react4.useState(null);
+    const [screen, setScreen] = import_react4.useState(() => loadSavedFlow()?.screen ?? "home");
+    const [flow, setFlow] = import_react4.useState(() => loadSavedFlow()?.flow ?? null);
     const [banner, setBanner] = import_react4.useState(null);
     const [failAnswerSeq, setFailAnswerSeq] = import_react4.useState(0);
     const [showFailAnswer, setShowFailAnswer] = import_react4.useState(false);
@@ -21351,7 +21429,7 @@ React keys must be passed directly to JSX without using spread:
       const upcomingCount = openedToday + 1;
       const isMilestone = gate !== "practice" && upcomingCount % 5 === 0;
       const band = gate === "practice" ? level : isMilestone ? BAND_MAX[type] : 1 + Math.floor(Math.random() * BAND_MAX[type]);
-      setFlow({ gate, type, level, band, phase: gate === "practice" ? "ready" : isMilestone ? "notice" : "playing", result: null, openedToday, upcomingCount, milestone: isMilestone });
+      setFlow({ gate, type, level, band, phase: gate === "practice" ? "ready" : isMilestone ? "notice" : "playing", result: null, openedToday, upcomingCount, milestone: isMilestone, cid: newEventId() });
       setScreen("challenge");
       setBanner(null);
       setFailAnswerSeq(0);
@@ -21435,6 +21513,12 @@ React keys must be passed directly to JSX without using spread:
       setScreen("home");
       setBanner("クールダウン終了。またチャレンジできます。");
     }, [screen, cooldownLeft, data?.session.cooldownUntil]);
+    import_react4.useEffect(() => {
+      if (screen === "challenge" && flow && flow.cid)
+        saveFlowState({ screen, flow });
+      else if (screen !== "challenge")
+        saveFlowState(null);
+    }, [screen, flow]);
     const onChallengeFinish = (result) => {
       setFlow((f) => f ? { ...f, phase: "done", result } : f);
       if (!flow || flow.gate === "practice")
@@ -21646,7 +21730,8 @@ React keys must be passed directly to JSX without using spread:
                     gate: flow.gate,
                     milestoneMax: flow.milestone,
                     failRevealSeq: failAnswerSeq,
-                    onAnswerClose: () => setShowFailAnswer(false)
+                    onAnswerClose: () => setShowFailAnswer(false),
+                    cid: flow.cid
                   }, `${flow.type}-${flow.level}-${flow.band}`, false, undefined, this)
                 }, undefined, false, undefined, this),
                 flow.phase === "done" && flow.result && !showFailAnswer && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
@@ -21833,15 +21918,6 @@ React keys must be passed directly to JSX without using spread:
                 /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
                   className: "mt-2 text-xs text-[var(--dim)]",
                   children: "終わるまで再挑戦できません"
-                }, undefined, false, undefined, this),
-                /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
-                  type: "button",
-                  onClick: () => {
-                    clearCooldownMut.mutate();
-                    setScreen("home");
-                  },
-                  className: "mt-10 rounded-full border border-[var(--border)] px-4 py-2 text-xs font-bold text-[var(--dim)]",
-                  children: "クールダウンを終わらせる（プロトタイプ用）"
                 }, undefined, false, undefined, this)
               ]
             }, undefined, true, undefined, this)
@@ -21871,15 +21947,14 @@ React keys must be passed directly to JSX without using spread:
       onSuccess: () => queryClient.invalidateQueries({ queryKey: ["state"] })
     });
     const [sessionMinutes, setSessionMinutes] = import_react4.useState(data.settings.sessionMinutes);
-    const [cooldownMinutes, setCooldownMinutes] = import_react4.useState(data.settings.cooldownMinutes);
+    const cooldownMinutes = 5;
     const [challengeMode, setChallengeMode] = import_react4.useState(() => sanitizeChallengeMode(data.settings.challengeMode));
     const [saved, setSaved] = import_react4.useState(false);
     const [confirmReset, setConfirmReset] = import_react4.useState(false);
     import_react4.useEffect(() => {
       setSessionMinutes(data.settings.sessionMinutes);
-      setCooldownMinutes(data.settings.cooldownMinutes);
       setChallengeMode(sanitizeChallengeMode(data.settings.challengeMode));
-    }, [data.settings.sessionMinutes, data.settings.cooldownMinutes, data.settings.challengeMode]);
+    }, [data.settings.sessionMinutes, data.settings.challengeMode]);
     return /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
       className: "pt-5",
       children: [
@@ -22063,23 +22138,13 @@ React keys must be passed directly to JSX without using spread:
                 }, undefined, true, undefined, this),
                 /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
                   children: [
-                    /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("label", {
-                      htmlFor: "cooldown-min",
+                    /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
                       className: "text-sm font-bold",
-                      children: "クールダウンの長さ（失敗時・標準は5分）"
+                      children: "クールダウンの長さ（失敗時）"
                     }, undefined, false, undefined, this),
-                    /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("select", {
-                      id: "cooldown-min",
-                      value: cooldownMinutes,
-                      onChange: (e) => setCooldownMinutes(Number(e.target.value)),
-                      className: "mt-1.5 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-3 text-base",
-                      children: [1, 5, 10, 30, 60].map((m) => /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
-                        value: m,
-                        children: [
-                          m,
-                          "分"
-                        ]
-                      }, m, true, undefined, this))
+                    /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
+                      className: "mt-1.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-3 text-base",
+                      children: "5分（固定）"
                     }, undefined, false, undefined, this)
                   ]
                 }, undefined, true, undefined, this),
