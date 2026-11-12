@@ -17398,41 +17398,11 @@ React keys must be passed directly to JSX without using spread:
     lights: "ライツアウト",
     river: "川渡り",
     hitblow: "数字当て",
-    stroke: "一筆書き"
+    stroke: "一筆書き",
+    numlink: "ナンバーリンク",
+    slide: "スライドパズル",
+    hanoi: "ハノイの塔"
   };
-  var recentIdxMap = new Map;
-  var RECENT_KEY = "gatekeeper-recent-v1";
-  try {
-    const raw = localStorage.getItem(RECENT_KEY);
-    if (raw) {
-      const obj = JSON.parse(raw);
-      for (const k of Object.keys(obj)) {
-        if (Array.isArray(obj[k]))
-          recentIdxMap.set(k, obj[k]);
-      }
-    }
-  } catch {}
-  function persistRecent() {
-    try {
-      const obj = {};
-      recentIdxMap.forEach((v, k) => {
-        obj[k] = v;
-      });
-      localStorage.setItem(RECENT_KEY, JSON.stringify(obj));
-    } catch {}
-  }
-  function pickFreshIndex(cacheKey, count) {
-    if (count <= 1)
-      return 0;
-    const recent = recentIdxMap.get(cacheKey) ?? [];
-    const fresh = Array.from({ length: count }, (_, i) => i).filter((i) => !recent.includes(i));
-    const pool = fresh.length > 0 ? fresh : Array.from({ length: count }, (_, i) => i);
-    const picked = pool[Math.floor(Math.random() * pool.length)];
-    const keep = Math.min(3, count - 1);
-    recentIdxMap.set(cacheKey, [...recent, picked].slice(-keep));
-    persistRecent();
-    return picked;
-  }
   var BAND_MAX = {
     rhythm: 8,
     shogi: 2,
@@ -17441,28 +17411,11 @@ React keys must be passed directly to JSX without using spread:
     lights: 3,
     river: 3,
     hitblow: 3,
-    stroke: 3
+    stroke: 3,
+    numlink: 3,
+    slide: 3,
+    hanoi: 3
   };
-  function drawWeightedBand(maxBand) {
-    const total = maxBand * (maxBand + 1) / 2;
-    let r = Math.random() * total;
-    for (let b = 1;b <= maxBand; b++) {
-      r -= b;
-      if (r < 0)
-        return b;
-    }
-    return maxBand;
-  }
-  function drawBandWithWeights(bands, weights) {
-    const total = weights.reduce((a, w) => a + w, 0);
-    let r = Math.random() * total;
-    for (let i = 0;i < bands.length; i++) {
-      r -= weights[i];
-      if (r < 0)
-        return bands[i];
-    }
-    return bands[bands.length - 1];
-  }
   function rhythmBpm(level) {
     return Math.min(90 + 12 * (level - 1), 150);
   }
@@ -18463,8 +18416,9 @@ React keys must be passed directly to JSX without using spread:
   var patternHitSound = (e) => toneSound(e);
   var tapOkSound = (e) => snareSound(e);
   var tapBadSound = (e) => tomSound(e, 95);
-  function RhythmChallenge({ band, onFinish }) {
+  function RhythmChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
     const bpm = rhythmBpm(band);
+    const tolerance = band >= 6 ? 0.55 : RHYTHM_TOLERANCE;
     const stepMs = 60000 / bpm / 2;
     const pattern = import_react3.useMemo(() => generatePattern(band), [band]);
     const hitCount = import_react3.useMemo(() => pattern.filter(Boolean).length, [pattern]);
@@ -18474,6 +18428,10 @@ React keys must be passed directly to JSX without using spread:
     const [extraSteps, setExtraSteps] = import_react3.useState([]);
     const [missCount, setMissCount] = import_react3.useState(0);
     const [judgement, setJudgement] = import_react3.useState(null);
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const [revealed, setRevealed] = import_react3.useState(false);
+    const [replayStep, setReplayStep] = import_react3.useState(-1);
+    const replayTimersRef = import_react3.useRef([]);
     const engineRef = import_react3.useRef(null);
     const startRef = import_react3.useRef(0);
     const lastStepRef = import_react3.useRef(-1);
@@ -18527,7 +18485,7 @@ React keys must be passed directly to JSX without using spread:
           const pos = (now - playStart) / stepMs;
           let changed = false;
           for (let i = 0;i < RHYTHM_STEPS; i++) {
-            if (pattern[i] && !matchedRef.current.has(i) && !missedRef.current.has(i) && pos > i + RHYTHM_TOLERANCE) {
+            if (pattern[i] && !matchedRef.current.has(i) && !missedRef.current.has(i) && pos > i + tolerance) {
               missedRef.current.add(i);
               changed = true;
             }
@@ -18561,7 +18519,7 @@ React keys must be passed directly to JSX without using spread:
       const now = performance.now();
       const playStart = startRef.current + (listenSteps + RHYTHM_COUNT_STEPS) * stepMs;
       const pos = (now - playStart) / stepMs;
-      if (pos < -RHYTHM_TOLERANCE)
+      if (pos < -tolerance)
         return;
       if (pos > RHYTHM_STEPS)
         return;
@@ -18577,7 +18535,7 @@ React keys must be passed directly to JSX without using spread:
           best = i;
         }
       }
-      if (best >= 0 && bestDist <= RHYTHM_TOLERANCE) {
+      if (best >= 0 && bestDist <= tolerance) {
         matchedRef.current.add(best);
         const hitStep = best;
         setMatched((prev) => {
@@ -18607,6 +18565,119 @@ React keys must be passed directly to JSX without using spread:
           finishGame(false);
       }
     };
+    const playAnswer = () => {
+      replayTimersRef.current.forEach((t) => window.clearTimeout(t));
+      replayTimersRef.current = [];
+      const engine = createAudioEngine();
+      if (engine)
+        engine.ctx.resume().catch(() => {
+          return;
+        });
+      for (let k = 0;k < RHYTHM_STEPS; k++) {
+        replayTimersRef.current.push(window.setTimeout(() => {
+          setReplayStep(k);
+          if (engine) {
+            if (k % 2 === 0)
+              clickSound(engine, k % 8 === 0);
+            if (pattern[k])
+              patternHitSound(engine);
+          }
+        }, k * stepMs));
+      }
+      replayTimersRef.current.push(window.setTimeout(() => {
+        setReplayStep(-1);
+        if (engine)
+          engine.ctx.close().catch(() => {
+            return;
+          });
+      }, RHYTHM_STEPS * stepMs + 350));
+    };
+    const onRevealConfirm = () => {
+      setConfirming(false);
+      doneRef.current = true;
+      setRevealed(true);
+    };
+    const closeWithFail = () => {
+      replayTimersRef.current.forEach((t) => window.clearTimeout(t));
+      finishRef.current({ passed: false, score: matchedRef.current.size });
+    };
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      setRevealed(true);
+      setFailReveal(true);
+    }, [failRevealSeq]);
+    const closeRevealed = failReveal ? () => {
+      replayTimersRef.current.forEach((t) => window.clearTimeout(t));
+      if (onAnswerClose)
+        onAnswerClose();
+    } : closeWithFail;
+    if (revealed)
+      return /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+        children: [
+          /* @__PURE__ */ jsx_dev_runtime.jsxDEV("p", {
+            className: "font-display text-lg font-extrabold",
+            children: "正解のリズム"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsx_dev_runtime.jsxDEV("p", {
+            className: "mt-1 mb-3 text-sm text-[var(--dim)]",
+            children: `テンポ ♩=${bpm}・打点${hitCount}個。丸印のあるマスが打点です（左から右へ、1マス＝8分音符）。`
+          }, undefined, false, undefined, this),
+          [0, 1].map((bar) => /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+            className: bar === 1 ? "mt-2" : undefined,
+            children: [
+              /* @__PURE__ */ jsx_dev_runtime.jsxDEV("p", {
+                className: "mb-1 text-[11px] font-bold text-[var(--dim)]",
+                children: [
+                  bar + 1,
+                  "小節目"
+                ]
+              }, undefined, true, undefined, this),
+              /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+                className: "grid grid-cols-8 gap-1.5",
+                children: Array.from({ length: 8 }, (_, j) => {
+                  const i = bar * 8 + j;
+                  const has = pattern[i] === true;
+                  const isNow = replayStep === i;
+                  return /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+                    className: "flex aspect-square items-center justify-center rounded-lg border",
+                    style: {
+                      borderColor: isNow ? "var(--accent)" : "var(--border)",
+                      borderWidth: isNow ? 2 : 1,
+                      background: isNow && has ? "var(--accent)" : "var(--surface2)"
+                    },
+                    children: has && /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+                      className: "block rounded-full",
+                      style: {
+                        width: isNow ? 18 : 13,
+                        height: isNow ? 18 : 13,
+                        background: isNow ? "#ffffff" : "var(--accent)"
+                      }
+                    }, undefined, false, undefined, this)
+                  }, i, false, undefined, this);
+                })
+              }, undefined, false, undefined, this)
+            ]
+          }, bar, true, undefined, this)),
+          /* @__PURE__ */ jsx_dev_runtime.jsxDEV("button", {
+            type: "button",
+            onClick: playAnswer,
+            disabled: replayStep >= 0,
+            className: "font-display mt-4 w-full rounded-full py-3.5 text-base font-extrabold text-white disabled:opacity-40",
+            style: { background: "var(--accent)" },
+            children: replayStep >= 0 ? "再生中…" : "音付きで再生"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsx_dev_runtime.jsxDEV("button", {
+            type: "button",
+            onClick: closeRevealed,
+            className: "font-display mt-2 w-full rounded-full py-3.5 text-base font-extrabold text-white",
+            style: { background: "#f4212e" },
+            children: failReveal ? "失敗画面に戻る" : "閉じて終了する（失敗扱い）"
+          }, undefined, false, undefined, this)
+        ]
+      }, undefined, true, undefined, this);
     return /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
       children: [
         /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
@@ -18745,15 +18816,35 @@ React keys must be passed directly to JSX without using spread:
         /* @__PURE__ */ jsx_dev_runtime.jsxDEV("p", {
           className: "mt-2 text-center text-xs text-[var(--dim)]",
           children: phase === "listen" ? "音と光で、光るタイミングを覚えよう。リズムは1回だけ流れます。" : phase === "count" ? "次の小節頭から本番。ボタンはもう押せます。最初の打点は少し早めに叩いても、判定の範囲内ならヒットになります（範囲外のタップはミスになりません）。" : "さっきのリズムを思い出して、同じタイミングでTAP！見逃しと余計なタップはミスです。"
-        }, undefined, false, undefined, this)
+        }, undefined, false, undefined, this),
+        /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+          className: "mt-4 text-center",
+          children: /* @__PURE__ */ jsx_dev_runtime.jsxDEV("button", {
+            type: "button",
+            onClick: () => setConfirming(true),
+            className: "font-display rounded-full px-4 py-2.5 text-sm font-extrabold",
+            style: { border: "2px solid var(--border)", background: "var(--surface)", color: "var(--dim)" },
+            children: "答えを見る"
+          }, undefined, false, undefined, this)
+        }, undefined, false, undefined, this),
+        confirming && revealDialog(gate === "practice", () => setConfirming(false), onRevealConfirm)
       ]
     }, undefined, true, undefined, this);
   }
-  function ShogiChallenge({ band, onFinish, milestoneMax }) {
+  function ShogiChallenge({ band, onFinish, milestoneMax, gate, failRevealSeq, onAnswerClose }) {
     const problem = import_react3.useMemo(() => {
-      const difficult = milestoneMax ? true : band === 3 ? Math.random() < 0.5 : band === 2;
+      if (gate !== "practice") {
+        if (milestoneMax) {
+          const mpool = SHOGI_DIFFICULT_POOL.length > 0 ? SHOGI_DIFFICULT_POOL : SHOGI_PROBLEM_POOL;
+          return mpool[Math.floor(Math.random() * mpool.length)];
+        }
+        const all = [...SHOGI_PROBLEM_POOL, ...SHOGI_DIFFICULT_POOL];
+        const pool2 = all.length > 0 ? all : SHOGI_PROBLEM_POOL;
+        return pool2[Math.floor(Math.random() * pool2.length)];
+      }
+      const difficult = band === 3 ? Math.random() < 0.5 : band === 2;
       const pool = difficult && SHOGI_DIFFICULT_POOL.length > 0 ? SHOGI_DIFFICULT_POOL : SHOGI_PROBLEM_POOL;
-      return pool[pickFreshIndex(difficult ? "shogi9-difficult" : "shogi9", pool.length)];
+      return pool[Math.floor(Math.random() * pool.length)];
     }, []);
     const [pos, setPos] = import_react3.useState(() => problem.initial);
     const [phase, setPhase] = import_react3.useState(1);
@@ -18763,6 +18854,27 @@ React keys must be passed directly to JSX without using spread:
     const [msg, setMsg] = import_react3.useState("1手目：王手をかけよう");
     const [log, setLog] = import_react3.useState([]);
     const [showSolution, setShowSolution] = import_react3.useState(false);
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const onRevealConfirm = () => {
+      setConfirming(false);
+      setShowSolution(true);
+      setSelected(null);
+      setPending(null);
+      doneRef.current = true;
+    };
+    const closeWithFail = () => {
+      finishRef.current({ passed: false });
+    };
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      setShowSolution(true);
+      setSelected(null);
+      setPending(null);
+      setFailReveal(true);
+    }, [failRevealSeq]);
     const [cleared, setCleared] = import_react3.useState(false);
     const doneRef = import_react3.useRef(false);
     const finishRef = import_react3.useRef(onFinish);
@@ -18783,9 +18895,16 @@ React keys must be passed directly to JSX without using spread:
       return map;
     }, [senteMoves, selected]);
     const rejectMove = (text) => {
-      setMisses((m) => m + 1);
+      const nm = misses + 1;
+      setMisses(nm);
       setSelected(null);
       setPending(null);
+      if (nm >= 3) {
+        doneRef.current = true;
+        setMsg(`${text} ミス3回で失敗です…`);
+        window.setTimeout(() => finishRef.current({ passed: false }), 1200);
+        return;
+      }
       setMsg(text);
     };
     const finishClear = (after, finalLog) => {
@@ -18840,7 +18959,6 @@ React keys must be passed directly to JSX without using spread:
         return;
       setPos(problem.initial);
       setPhase(1);
-      setMisses(0);
       setSelected(null);
       setPending(null);
       setLog([]);
@@ -18946,19 +19064,26 @@ React keys must be passed directly to JSX without using spread:
               ]
             }, undefined, true, undefined, this),
             /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
-              className: "text-xs font-bold text-[var(--dim)]",
-              "aria-label": `ミス ${misses} 回、上限なし`,
+              className: "text-xs font-bold",
+              "aria-label": `ミス ${misses} 回（上限3回）`,
               children: [
                 "ミス ",
-                misses,
-                "回（上限なし）"
+                /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+                  style: { color: "#f4212e" },
+                  children: "●".repeat(misses)
+                }, undefined, false, undefined, this),
+                /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+                  style: { color: "var(--border)" },
+                  children: "●".repeat(Math.max(0, 3 - misses))
+                }, undefined, false, undefined, this),
+                `（${misses}/3回）`
               ]
             }, undefined, true, undefined, this)
           ]
         }, undefined, true, undefined, this),
         /* @__PURE__ */ jsx_dev_runtime.jsxDEV("p", {
           className: "mb-3 text-xs leading-relaxed text-[var(--dim)]",
-          children: "9×9のフル盤面・正式ルール（合駒あり）です。下側が攻め方、逆さの駒が玉方。毎手王手をかけて3手目で詰ませればクリア。駒をタップ→移動先をタップ、持ち駒も同じ操作で、成れる場合は成り／不成を選べます。間違えた手は無効になって局面はそのまま残るので、詰ませるまで何度でも試せます。"
+          children: "9×9のフル盤面・正式ルール（合駒あり）です。下側が攻め方、逆さの駒が玉方。毎手王手をかけて3手目で詰ませればクリア。駒をタップ→移動先をタップ、持ち駒も同じ操作で、成れる場合は成り／不成を選べます。間違えた手は無効になって局面はそのまま残りますが、間違えた手1回でミス1回、ミス3回で失敗です。「最初からやり直す」でもミス回数はリセットされません。"
         }, undefined, false, undefined, this),
         /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
           className: "mb-2",
@@ -19090,10 +19215,10 @@ React keys must be passed directly to JSX without using spread:
             }, undefined, false, undefined, this),
             /* @__PURE__ */ jsx_dev_runtime.jsxDEV("button", {
               type: "button",
-              onClick: () => setShowSolution((s) => !s),
-              className: "rounded-full border border-[var(--border)] px-4 py-2 text-xs font-bold text-[var(--dim)]",
-              "aria-expanded": showSolution,
-              children: showSolution ? "正解手順を隠す" : "正解手順を見る"
+              onClick: () => { if (!showSolution && !cleared) setConfirming(true); },
+              disabled: showSolution || cleared,
+              className: "rounded-full border border-[var(--border)] px-4 py-2 text-xs font-bold text-[var(--dim)] disabled:opacity-40",
+              children: "答えを見る"
             }, undefined, false, undefined, this)
           ]
         }, undefined, true, undefined, this),
@@ -19110,6 +19235,14 @@ React keys must be passed directly to JSX without using spread:
             }, undefined, false, undefined, this)
           ]
         }, undefined, true, undefined, this),
+        showSolution && !cleared && /* @__PURE__ */ jsx_dev_runtime.jsxDEV("button", {
+          type: "button",
+          onClick: failReveal ? onAnswerClose : closeWithFail,
+          className: "font-display mt-3 w-full rounded-full py-3.5 text-base font-extrabold text-white",
+          style: { background: "#f4212e" },
+          children: failReveal ? "失敗画面に戻る" : "閉じて終了する（失敗扱い）"
+        }, undefined, false, undefined, this),
+        confirming && revealDialog(gate === "practice", () => setConfirming(false), onRevealConfirm),
         /* @__PURE__ */ jsx_dev_runtime.jsxDEV("p", {
           className: "mt-3 text-center text-[11px] text-[var(--dim)]",
           children: "詰将棋の問題出典：将棋ジム（個人利用・非公開）。全300問を検証し、通常帯108問と難しい帯192問を出題しています。"
@@ -19157,8 +19290,229 @@ React keys must be passed directly to JSX without using spread:
     return ce("button", { type: "button", onClick, disabled: !!o.disabled, className: "font-display rounded-full px-4 py-2.5 text-sm font-extrabold " + (o.className || ""), style: o.style || { border: "2px solid var(--border)", background: "var(--surface)" } }, label);
   }
 
+  // ---------- Reveal answer (答えを見る) ----------
+  function revealDialog(practice, onCancel, onConfirm) {
+    return ce("div", { className: "fixed inset-0 flex items-center justify-center px-4", style: { background: "rgba(0,0,0,0.55)", zIndex: 50 }, role: "dialog", "aria-modal": "true", "aria-label": "答えを見る確認" },
+      ce("div", { className: "w-full rounded-2xl p-5 shadow-lg", style: { background: "var(--surface)", maxWidth: 380 } },
+        ce("p", { className: "font-display text-lg font-extrabold" }, "答えを見ますか？"),
+        ce("p", { className: "mt-2 text-sm leading-relaxed" }, practice ? "答えを見ると、この練習問題は終了します。クールダウンはかかりません。見ますか？" : "答えを見ると失敗扱いになり、5分のロック（クールダウン）がかかります。見ますか？"),
+        ce("div", { className: "mt-4 flex gap-2" },
+          ce("button", { type: "button", onClick: onConfirm, className: "font-display flex-1 rounded-full py-3 text-base font-extrabold text-white", style: { background: "#f4212e" } }, "見る"),
+          ce("button", { type: "button", onClick: onCancel, className: "font-display flex-1 rounded-full py-3 text-base font-extrabold", style: { border: "2px solid var(--border)", background: "var(--surface)" } }, "やめる"))));
+  }
+  function revealOpenBtn(onClick) {
+    return ce("div", { className: "mt-4 text-center" },
+      ngBtn("答えを見る", onClick, { style: { border: "2px solid var(--border)", background: "var(--surface)", color: "var(--dim)" } }));
+  }
+  function revealCloseBtn(onClick, label) {
+    return ce("div", { className: "mt-4 text-center" },
+      ce("button", { type: "button", onClick, className: "font-display w-full rounded-full py-3.5 text-base font-extrabold text-white", style: { background: "#f4212e" } }, label || "閉じて終了する（失敗扱い）"));
+  }
+  function rushSolve(start) {
+    const keyOf = (vs) => vs.map((v) => v.horiz ? v.x : v.y).join(",");
+    const heur = (vs) => {
+      const red = vs[0];
+      const g = rushOccupancy(vs);
+      const seen = new Set();
+      for (let x = red.x + red.len; x < 6; x++) {
+        const o = g[red.y][x];
+        if (o > 0)
+          seen.add(o);
+      }
+      return (4 - red.x) + seen.size;
+    };
+    const startVs = start.map((v) => ({ ...v }));
+    const nodes = new Map();
+    nodes.set(keyOf(startVs), { vs: startVs, parent: null });
+    const gScore = new Map([[keyOf(startVs), 0]]);
+    const heap = [{ key: keyOf(startVs), f: heur(startVs) }];
+    const push = (item) => {
+      heap.push(item);
+      let i = heap.length - 1;
+      while (i > 0) {
+        const p = (i - 1) >> 1;
+        if (heap[p].f <= heap[i].f)
+          break;
+        [heap[p], heap[i]] = [heap[i], heap[p]];
+        i = p;
+      }
+    };
+    const pop = () => {
+      const top = heap[0];
+      const last = heap.pop();
+      if (heap.length) {
+        heap[0] = last;
+        let i = 0;
+        for (;;) {
+          const l = i * 2 + 1, r = l + 1;
+          let m = i;
+          if (l < heap.length && heap[l].f < heap[m].f) m = l;
+          if (r < heap.length && heap[r].f < heap[m].f) m = r;
+          if (m === i)
+            break;
+          [heap[m], heap[i]] = [heap[i], heap[m]];
+          i = m;
+        }
+      }
+      return top;
+    };
+    let expansions = 0;
+    while (heap.length) {
+      const cur = pop();
+      const node = nodes.get(cur.key);
+      if (!node)
+        continue;
+      const vs = node.vs;
+      if (vs[0].x === 4) {
+        const chain = [];
+        let k = cur.key;
+        while (k) {
+          chain.push(nodes.get(k).vs);
+          k = nodes.get(k).parent;
+        }
+        chain.reverse();
+        const steps = [chain[0]];
+        for (let s = 1; s < chain.length; s++) {
+          const prev = chain[s - 1], nxt = chain[s];
+          let idx = 0;
+          while (idx < prev.length && prev[idx].x === nxt[idx].x && prev[idx].y === nxt[idx].y)
+            idx++;
+          const horiz = prev[idx].horiz;
+          const from = horiz ? prev[idx].x : prev[idx].y;
+          const to = horiz ? nxt[idx].x : nxt[idx].y;
+          const dir = to > from ? 1 : -1;
+          let curPos = from;
+          while (curPos !== to) {
+            curPos += dir;
+            const mid = steps[steps.length - 1].map((v, j) => j === idx ? (horiz ? { ...v, x: curPos } : { ...v, y: curPos }) : v);
+            steps.push(mid);
+          }
+        }
+        return steps;
+      }
+      if (++expansions > 400000)
+        return null;
+      const g = gScore.get(cur.key);
+      for (let idx = 0; idx < vs.length; idx++) {
+        const [lo, hi] = rushSlideRange(vs, idx);
+        const curPos = vs[idx].horiz ? vs[idx].x : vs[idx].y;
+        for (let np = lo; np <= hi; np++) {
+          if (np === curPos)
+            continue;
+          const nvs = vs.map((v, j) => j === idx ? (v.horiz ? { ...v, x: np } : { ...v, y: np }) : v);
+          const nk = keyOf(nvs);
+          const ng = g + Math.abs(np - curPos);
+          if (ng < (gScore.get(nk) ?? Infinity)) {
+            gScore.set(nk, ng);
+            nodes.set(nk, { vs: nvs, parent: cur.key });
+            push({ key: nk, f: ng + heur(nvs) });
+          }
+        }
+      }
+    }
+    return null;
+  }
+  function riverSolve(conf) {
+    const n = conf.items.length;
+    const danger = (mask, farmerRight) => conf.pairs.some(([a, b]) => {
+      const aR = !!(mask >> a & 1), bR = !!(mask >> b & 1);
+      return aR === bR && aR !== farmerRight;
+    });
+    const keyOf = (mask, farmerRight) => mask + (farmerRight ? "R" : "L");
+    const prev = new Map();
+    prev.set(keyOf(0, false), null);
+    const queue = [{ mask: 0, farmerRight: false }];
+    while (queue.length) {
+      const cur = queue.shift();
+      const sideItems = [];
+      for (let i = 0; i < n; i++)
+        if (!!(cur.mask >> i & 1) === cur.farmerRight)
+          sideItems.push(i);
+      const subsets = [[]];
+      for (const it of sideItems) {
+        const cur2 = subsets.slice();
+        for (const s of cur2)
+          if (s.length < conf.cap)
+            subsets.push([...s, it]);
+      }
+      for (const sub of subsets) {
+        let nmask = cur.mask;
+        for (const i of sub)
+          nmask ^= 1 << i;
+        const nfarmer = !cur.farmerRight;
+        if (danger(nmask, nfarmer))
+          continue;
+        const nk = keyOf(nmask, nfarmer);
+        if (prev.has(nk))
+          continue;
+        prev.set(nk, { from: keyOf(cur.mask, cur.farmerRight), items: sub, toRight: nfarmer });
+        if (nmask === (1 << n) - 1 && nfarmer) {
+          const steps = [];
+          let k = nk;
+          while (prev.get(k)) {
+            const p = prev.get(k);
+            steps.push({ items: p.items.map((i) => conf.items[i]), toRight: p.toRight });
+            k = p.from;
+          }
+          steps.reverse();
+          return steps;
+        }
+        queue.push({ mask: nmask, farmerRight: nfarmer });
+      }
+    }
+    return null;
+  }
+  function strokeSolution(fig) {
+    const adj = fig.pts.map(() => []);
+    fig.edges.forEach(([u, v], ei) => {
+      adj[u].push({ to: v, ei });
+      adj[v].push({ to: u, ei });
+    });
+    const usedE = new Set();
+    const nodeStack = [0];
+    const edgeStack = [];
+    const circuitNodes = [];
+    const circuitEdges = [];
+    while (nodeStack.length) {
+      const u = nodeStack[nodeStack.length - 1];
+      const next = adj[u].find((e) => !usedE.has(e.ei));
+      if (next) {
+        usedE.add(next.ei);
+        nodeStack.push(next.to);
+        edgeStack.push(next.ei);
+      } else {
+        circuitNodes.push(nodeStack.pop());
+        if (edgeStack.length)
+          circuitEdges.push(edgeStack.pop());
+      }
+    }
+    if (usedE.size !== fig.edges.length)
+      return null;
+    circuitNodes.reverse();
+    circuitEdges.reverse();
+    return { nodes: circuitNodes, edges: circuitEdges };
+  }
+  function matchFindSolution(pos) {
+    for (let i = 0; i < pos.length; i++)
+      for (let b = 0; b < pos[i].slots; b++) {
+        if (!(pos[i].mask >> b & 1))
+          continue;
+        for (let j = 0; j < pos.length; j++)
+          for (let c = 0; c < pos[j].slots; c++) {
+            if (pos[j].mask >> c & 1)
+              continue;
+            const np = pos.map((p) => ({ ...p }));
+            np[i].mask &= ~(1 << b);
+            np[j].mask |= 1 << c;
+            if (matchEval(np))
+              return { fromPi: i, fromBit: b, toPi: j, toBit: c, solved: np };
+          }
+      }
+    return null;
+  }
+
   // ---------- Rush Hour ----------
-  var RUSH_TIME = { 1: 90, 2: 105, 3: 120 };
+  var RUSH_TIME = { 1: 90, 2: 105, 3: 180 };
   var RUSH_COLORS = ["#38bdf8", "#a3e635", "#fbbf24", "#f472b6", "#34d399", "#818cf8", "#fb923c", "#22d3ee", "#e879f9", "#94a3b8", "#facc15", "#4ade80"];
   function rushOccupancy(vehicles) {
     const g = Array.from({ length: 6 }, () => Array(6).fill(-1));
@@ -19188,10 +19542,10 @@ React keys must be passed directly to JSX without using spread:
     }
     return [lo, hi];
   }
-  function RushChallenge({ band, onFinish }) {
+  function RushChallenge({ band, onFinish, gate, milestoneMax, failRevealSeq, onAnswerClose }) {
     const puzzle = import_react3.useMemo(() => {
-      const pool = RUSH_POOL[band] && RUSH_POOL[band].length ? RUSH_POOL[band] : RUSH_POOL[1];
-      const p = pool[pickFreshIndex("rush" + band, pool.length)];
+      const pool = gate !== "practice" && !milestoneMax ? [...RUSH_POOL[1], ...RUSH_POOL[2], ...RUSH_POOL[3]] : RUSH_POOL[band] && RUSH_POOL[band].length ? RUSH_POOL[band] : RUSH_POOL[1];
+      const p = pool[Math.floor(Math.random() * pool.length)];
       return {
         vehicles: p.v.map((a, i) => ({ x: a[0], y: a[1], len: a[2], horiz: a[3] === 1, red: i === 0 })),
         minMoves: p.m
@@ -19212,7 +19566,44 @@ React keys must be passed directly to JSX without using spread:
       doneRef.current = true;
       finishRef.current({ passed });
     }, []);
-    const left = useNgCountdown(RUSH_TIME[band] || 90, !cleared, () => finish(false));
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const [revealed, setRevealed] = import_react3.useState(false);
+    const [solPath, setSolPath] = import_react3.useState(null);
+    const [solIdx, setSolIdx] = import_react3.useState(0);
+    const [autoPlay, setAutoPlay] = import_react3.useState(false);
+    const revealedRef = import_react3.useRef(false);
+    const left = useNgCountdown(RUSH_TIME[band] || 90, !cleared, () => { if (!revealedRef.current) finish(false); });
+    import_react3.useEffect(() => {
+      if (!autoPlay || !solPath)
+        return;
+      const iv = window.setInterval(() => setSolIdx((i) => Math.min(i + 1, solPath.length - 1)), 550);
+      return () => window.clearInterval(iv);
+    }, [autoPlay, solPath]);
+    import_react3.useEffect(() => {
+      if (solPath && solIdx >= solPath.length - 1)
+        setAutoPlay(false);
+    }, [solIdx, solPath]);
+    const onRevealConfirm = () => {
+      setConfirming(false);
+      revealedRef.current = true;
+      const sol = rushSolve(puzzle.vehicles);
+      setSolPath(sol);
+      setSolIdx(0);
+      setRevealed(true);
+    };
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      revealedRef.current = true;
+      const sol = rushSolve(puzzle.vehicles);
+      setSolPath(sol);
+      setSolIdx(0);
+      setAutoPlay(false);
+      setRevealed(true);
+      setFailReveal(true);
+    }, [failRevealSeq]);
     const commitMove = (idx, newPos) => {
       const cur = vehicles[idx].horiz ? vehicles[idx].x : vehicles[idx].y;
       if (cur === newPos)
@@ -19274,6 +19665,36 @@ React keys must be passed directly to JSX without using spread:
       dragRef.current = null;
     };
     const dispVehicles = vehicles.map((v, i) => drag && drag.idx === i ? (v.horiz ? { ...v, x: drag.pos } : { ...v, y: drag.pos }) : v);
+    if (revealed) {
+      const totalSteps = solPath ? solPath.length - 1 : 0;
+      const dispV = solPath ? puzzle.vehicles.map((v, i) => ({ ...v, x: solPath[solIdx][i].x, y: solPath[solIdx][i].y })) : puzzle.vehicles;
+      return ce("div", null,
+        ce("p", { className: "font-display mb-2 text-lg font-extrabold" }, "解法（最短 ", puzzle.minMoves, " 手）"),
+        solPath ? ce("p", { className: "mb-3 text-sm text-[var(--dim)]" }, `手順 ${solIdx} / ${totalSteps}（1マス移動＝1手）`) : ce("p", { className: "mb-3 text-sm", style: { color: "#f4212e" } }, "解法を計算できませんでした"),
+        ce("div", {
+          className: "relative mx-auto w-full overflow-hidden rounded-xl",
+          style: { aspectRatio: "1", maxWidth: 420, background: "var(--surface2)", backgroundImage: "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)", backgroundSize: "16.666% 16.666%" }
+        },
+          ce("div", { className: "absolute flex items-center justify-center rounded-lg font-display text-xs font-extrabold text-white", style: { right: 0, top: `${2 / 6 * 100}%`, height: `${1 / 6 * 100}%`, width: "7%", background: "#65a30d", writingMode: "vertical-rl" } }, "出口"),
+          dispV.map((v, i) => ce("div", {
+            key: i,
+            className: "absolute",
+            style: {
+              left: `${v.x / 6 * 100}%`, top: `${v.y / 6 * 100}%`,
+              width: `${(v.horiz ? v.len : 1) / 6 * 100}%`, height: `${(v.horiz ? 1 : v.len) / 6 * 100}%`,
+              padding: "3px"
+            }
+          }, ce("div", {
+            className: "flex h-full w-full items-center justify-center rounded-lg font-display text-sm font-extrabold text-white shadow",
+            style: { background: v.red ? "#e02424" : RUSH_COLORS[i % RUSH_COLORS.length] }
+          }, v.red ? "自車" : "")))),
+        solPath && ce("div", { className: "mt-4 flex justify-center gap-2" },
+          ngBtn("◀ 前へ", () => setSolIdx((i) => Math.max(0, i - 1)), { disabled: solIdx <= 0 }),
+          ngBtn(autoPlay ? "止める" : "自動再生", () => setAutoPlay((a) => !a), { disabled: solIdx >= totalSteps && !autoPlay }),
+          ngBtn("次へ ▶", () => setSolIdx((i) => Math.min(totalSteps, i + 1)), { disabled: solIdx >= totalSteps })),
+        revealCloseBtn(failReveal ? onAnswerClose : () => finish(false), failReveal ? "失敗画面に戻る" : undefined)
+      );
+    }
     return ce("div", null,
       ngHeader(left, `最短 ${puzzle.minMoves} 手（1マス移動＝1手）`, `${history.length} 手`),
       ce("p", { className: "mb-3 text-sm leading-relaxed" }, "車をドラッグして前後に動かし、赤い車を右端の出口から出せばクリアです。"),
@@ -19303,7 +19724,9 @@ React keys must be passed directly to JSX without using spread:
       cleared && ce("p", { className: "mt-3 text-center font-display text-lg font-extrabold", style: { color: "#65a30d" } }, "脱出成功！"),
       ce("div", { className: "mt-4 flex justify-center gap-2" },
         ngBtn("1手戻す", undo, { disabled: !history.length || cleared }),
-        ngBtn("最初から", restart, { disabled: cleared }))
+        ngBtn("最初から", restart, { disabled: cleared })),
+      !cleared && revealOpenBtn(() => setConfirming(true)),
+      confirming && revealDialog(gate === "practice", () => setConfirming(false), onRevealConfirm)
     );
   }
 
@@ -19366,6 +19789,18 @@ React keys must be passed directly to JSX without using spread:
     const a = +m[1], b = +m[3], r = +m[4];
     return m[2] === "+" ? a + b === r : a - b === r;
   }
+  function matchIsReadableProblem(pos) {
+    const s = matchDecode(pos);
+    if (!s)
+      return false;
+    const m = s.match(/^(\d+)([+-])(\d+)=(\d+)$/);
+    if (!m)
+      return false;
+    for (const g of [m[1], m[3], m[4]])
+      if (g.length > 1 && g[0] === "0")
+        return false;
+    return !matchEval(pos);
+  }
   function matchCountSolutions(pos) {
     let count = 0;
     for (let i = 0; i < pos.length; i++)
@@ -19402,7 +19837,7 @@ React keys must be passed directly to JSX without using spread:
     return { a: 3, op: "+", b: 4, r: 7 };
   }
   function matchGenerate(band) {
-    for (let attempt = 0; attempt < 60; attempt++) {
+    for (let attempt = 0; attempt < 200; attempt++) {
       const eq = matchRandomEquation(band);
       const solved = matchBuildPos(eq.a, eq.op, eq.b, eq.r);
       const cands = [];
@@ -19417,12 +19852,12 @@ React keys must be passed directly to JSX without using spread:
               const np = solved.map((p) => ({ ...p }));
               np[i].mask &= ~(1 << b);
               np[j].mask |= 1 << c;
-              if (!matchEval(np))
+              if (matchIsReadableProblem(np))
                 cands.push(np);
             }
         }
       const shuffled = shuffle(cands);
-      for (const cand of shuffled.slice(0, 40)) {
+      for (const cand of shuffled) {
         if (matchCountSolutions(cand) === 1)
           return cand;
       }
@@ -19447,7 +19882,7 @@ React keys must be passed directly to JSX without using spread:
     f: { left: "0%", top: "8%", width: "14%", height: "38%" },
     g: { left: "18%", top: "45.5%", width: "64%", height: "9%" }
   };
-  function MatchChallenge({ band, onFinish }) {
+  function MatchChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
     const initial = import_react3.useMemo(() => {
       let g = matchGenerate(band);
       for (let i = 0; !g && i < 5; i++)
@@ -19461,6 +19896,24 @@ React keys must be passed directly to JSX without using spread:
     const [misses, setMisses] = import_react3.useState(0);
     const [msg, setMsg] = import_react3.useState("マッチをタップで選び、置きたい場所をタップして動かそう");
     const [cleared, setCleared] = import_react3.useState(false);
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const [revealed, setRevealed] = import_react3.useState(false);
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      setRevealed(true);
+      setFailReveal(true);
+    }, [failRevealSeq]);
+    const solution = import_react3.useMemo(() => matchFindSolution(initial), [initial]);
+    const missLimit = band === 3 ? 4 : 3;
+    const closeWithFail = () => {
+      if (doneRef.current)
+        return;
+      doneRef.current = true;
+      finishRef.current({ passed: false });
+    };
     const doneRef = import_react3.useRef(false);
     const finishRef = import_react3.useRef(onFinish);
     finishRef.current = onFinish;
@@ -19498,9 +19951,9 @@ React keys must be passed directly to JSX without using spread:
       }
       const nm = misses + 1;
       setMisses(nm);
-      if (nm >= 3) {
+      if (nm >= missLimit) {
         doneRef.current = true;
-        setMsg("ミス3回で失敗です…");
+        setMsg(`ミス${missLimit}回で失敗です…`);
         window.setTimeout(() => finishRef.current({ passed: false }), 700);
       } else {
         setMsg(`まだ正しい式ではありません（ミス ${nm} 回目）。動かしたマッチはそのままで直せます`);
@@ -19540,23 +19993,58 @@ React keys must be passed directly to JSX without using spread:
         segEl(pi, 1, { left: "4%", top: "62%", width: "92%", height: "11%" }));
     };
     const decoded = matchDecode(pos);
+    if (revealed) {
+      const ansSeg = (pi, bit, stylePos) => {
+        const on = (initial[pi].mask >> bit & 1) === 1;
+        const isFrom = solution && solution.fromPi === pi && solution.fromBit === bit;
+        const isTo = solution && solution.toPi === pi && solution.toBit === bit;
+        return ce("div", {
+          key: bit, className: "absolute",
+          style: { ...stylePos, borderRadius: "999px", background: isFrom ? "#f4212e" : on ? "#d97706" : isTo ? "#65a30d88" : "var(--surface2)", border: isTo ? "3px solid #65a30d" : on ? "none" : "1.5px dashed var(--border)", boxShadow: isFrom ? "0 0 0 4px #f4212e55" : "none" }
+        });
+      };
+      const ansGlyph = (p, pi) => {
+        if (p.kind === "d") {
+          return ce("div", { key: pi, className: "relative shrink-0", style: { width: 40, height: 68 } },
+            SEG_ORDER.map((s) => ansSeg(pi, SEG_ORDER.indexOf(s), SEG_POS[s])));
+        }
+        if (p.kind === "op") {
+          return ce("div", { key: pi, className: "relative shrink-0", style: { width: 30, height: 68 } },
+            ansSeg(pi, 0, { left: "38%", top: "12%", width: "24%", height: "76%" }),
+            ansSeg(pi, 1, { left: "4%", top: "44%", width: "92%", height: "11%" }));
+        }
+        return ce("div", { key: pi, className: "relative shrink-0", style: { width: 32, height: 68 } },
+          ansSeg(pi, 0, { left: "4%", top: "26%", width: "92%", height: "11%" }),
+          ansSeg(pi, 1, { left: "4%", top: "62%", width: "92%", height: "11%" }));
+      };
+      return ce("div", null,
+        ce("p", { className: "font-display mb-2 text-lg font-extrabold" }, "正解の動かし方"),
+        ce("p", { className: "mb-3 text-sm leading-relaxed" }, "赤く光っているマッチを、緑で示した場所へ動かすと正しい式になります（最初の式の状態で表示しています）。"),
+        ce("div", { className: "flex items-start justify-center gap-1.5 rounded-2xl py-5", style: { background: "var(--surface2)", overflowX: "auto" } },
+          initial.map((p, pi) => ansGlyph(p, pi))),
+        solution ? ce("p", { className: "mt-3 text-center font-display text-lg font-extrabold" }, "動かすと： ", matchDecode(solution.solved), " になります") : ce("p", { className: "mt-3 text-center text-sm", style: { color: "#f4212e" } }, "解法が見つかりませんでした"),
+        revealCloseBtn(failReveal ? onAnswerClose : closeWithFail, failReveal ? "失敗画面に戻る" : undefined)
+      );
+    }
     return ce("div", null,
       ce("div", { className: "mb-3 flex items-center justify-between" },
         ce("span", { className: "text-sm font-bold" }, "ミス ", ce("span", { style: { color: "#f4212e" } }, "●".repeat(misses)), ce("span", { style: { color: "var(--border)" } }, "●".repeat(Math.max(0, 3 - misses)))),
         ce("span", { className: "text-xs font-bold text-[var(--dim)]" }, "動かすのはちょうど1本")),
-      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "マッチ棒で作られた式を、ちょうど1本だけ動かして正しい式にしてください。「決定」で判定し、ミス3回で失敗です（決定前なら何度でも動かし直せます）。"),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, `マッチ棒で作られた式を、ちょうど1本だけ動かして正しい式にしてください。「決定」で判定し、ミス${missLimit}回で失敗です（決定前なら何度でも動かし直せます）。`),
       ce("div", { className: "flex items-start justify-center gap-1.5 rounded-2xl py-5", style: { background: "var(--surface2)", overflowX: "auto" } },
         pos.map((p, pi) => glyphEl(p, pi))),
       ce("p", { className: "mt-3 text-center text-sm font-bold text-[var(--dim)]" }, "現在の式：", decoded ? decoded.replace(/(\d)(?=\d)/g, "$1 ").split("").join(" ") : "（式の形になっていません）"),
       ce("p", { className: "mt-2 min-h-5 text-center text-sm", role: "status" }, msg),
       ce("div", { className: "mt-3 flex justify-center gap-2" },
         ngBtn("決定", judge, { disabled: cleared, style: { background: "var(--accent)", color: "#fff" } }),
-        ngBtn("最初に戻す", reset, { disabled: cleared }))
+        ngBtn("最初に戻す", reset, { disabled: cleared })),
+      !cleared && revealOpenBtn(() => setConfirming(true)),
+      confirming && revealDialog(gate === "practice", () => setConfirming(false), () => { setConfirming(false); setRevealed(true); })
     );
   }
 
   // ---------- Lights Out ----------
-  var LIGHTS_CONF = { 1: { size: 4, presses: 6, time: 90 }, 2: { size: 5, presses: 10, time: 120 }, 3: { size: 6, presses: 14, time: 150 } };
+  var LIGHTS_CONF = { 1: { size: 4, presses: 6, time: 90 }, 2: { size: 5, presses: 10, time: 120 }, 3: { size: 6, presses: 12, time: 150 } };
   function lightsPress(board, size, i) {
     const x = i % size, y = Math.floor(i / size);
     const nb = [...board];
@@ -19567,15 +20055,16 @@ React keys must be passed directly to JSX without using spread:
     }
     return nb;
   }
-  function LightsChallenge({ band, onFinish }) {
+  function LightsChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
     const conf = LIGHTS_CONF[band] || LIGHTS_CONF[1];
-    const initial = import_react3.useMemo(() => {
+    const puzzle = import_react3.useMemo(() => {
       let board = Array(conf.size * conf.size).fill(false);
       const cells = shuffle(Array.from({ length: conf.size * conf.size }, (_, i) => i)).slice(0, conf.presses);
       for (const c of cells)
         board = lightsPress(board, conf.size, c);
-      return board;
+      return { board, sol: cells };
     }, [band]);
+    const initial = puzzle.board;
     const [board, setBoard] = import_react3.useState(() => initial);
     const [taps, setTaps] = import_react3.useState(0);
     const [cleared, setCleared] = import_react3.useState(false);
@@ -19588,7 +20077,19 @@ React keys must be passed directly to JSX without using spread:
       doneRef.current = true;
       finishRef.current({ passed });
     }, []);
-    const left = useNgCountdown(conf.time, !cleared, () => finish(false));
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const [revealed, setRevealed] = import_react3.useState(false);
+    const revealedRef = import_react3.useRef(false);
+    const left = useNgCountdown(conf.time, !cleared, () => { if (!revealedRef.current) finish(false); });
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      revealedRef.current = true;
+      setRevealed(true);
+      setFailReveal(true);
+    }, [failRevealSeq]);
     const onTapCell = (i) => {
       if (doneRef.current || cleared)
         return;
@@ -19601,6 +20102,21 @@ React keys must be passed directly to JSX without using spread:
       }
     };
     const litCount = board.filter(Boolean).length;
+    if (revealed) {
+      const solOrder = {};
+      puzzle.sol.forEach((c, k) => { solOrder[c] = k + 1; });
+      return ce("div", null,
+        ce("p", { className: "font-display mb-2 text-lg font-extrabold" }, "解法（タップする順番）"),
+        ce("p", { className: "mb-3 text-sm leading-relaxed" }, "最初の盤面です。番号の付いたマスを順番にタップすると、全部のライトが消えます（黄色は点灯中）。"),
+        ce("div", { className: "mx-auto grid w-full gap-1.5", style: { maxWidth: 380, gridTemplateColumns: `repeat(${conf.size}, minmax(0, 1fr))` } },
+          initial.map((on, i) => ce("div", {
+            key: i,
+            className: "flex aspect-square items-center justify-center rounded-xl",
+            style: { background: on ? "#fbbf24" : "var(--surface2)", boxShadow: on ? "inset 0 0 0 2px #d97706" : "inset 0 0 0 1px var(--border)" }
+          }, solOrder[i] !== undefined ? ce("span", { className: "font-display flex items-center justify-center rounded-full text-sm font-extrabold text-white", style: { width: 26, height: 26, background: "#0f1419" } }, String(solOrder[i])) : null))),
+        revealCloseBtn(failReveal ? onAnswerClose : () => finish(false), failReveal ? "失敗画面に戻る" : undefined)
+      );
+    }
     return ce("div", null,
       ngHeader(left, `${conf.size}×${conf.size} ／ 点灯 ${litCount} 個`, `${taps} タップ`),
       ce("p", { className: "mb-3 text-sm leading-relaxed" }, "マスをタップすると、そのマスと上下左右が反転します。すべてのライトを消せばクリアです。"),
@@ -19612,7 +20128,9 @@ React keys must be passed directly to JSX without using spread:
         }))),
       cleared && ce("p", { className: "mt-3 text-center font-display text-lg font-extrabold", style: { color: "#65a30d" } }, "全消灯！"),
       ce("div", { className: "mt-4 flex justify-center gap-2" },
-        ngBtn("最初から", () => { if (!doneRef.current && !cleared) { setBoard(initial); setTaps(0); } }, { disabled: cleared }))
+        ngBtn("最初から", () => { if (!doneRef.current && !cleared) { setBoard(initial); setTaps(0); } }, { disabled: cleared })),
+      !cleared && revealOpenBtn(() => setConfirming(true)),
+      confirming && revealDialog(gate === "practice", () => setConfirming(false), () => { setConfirming(false); revealedRef.current = true; setRevealed(true); })
     );
   }
 
@@ -19622,7 +20140,7 @@ React keys must be passed directly to JSX without using spread:
     2: { items: ["狼", "ヤギ", "キャベツ", "花束", "種袋"], cap: 1, pairs: [[0, 1, "狼がヤギを食べてしまう"], [1, 2, "ヤギがキャベツを食べてしまう"]], min: 11 },
     3: { items: ["狼", "ヤギ", "キャベツ", "狐", "鶏", "米", "犬"], cap: 2, pairs: [[0, 1, "狼がヤギを食べてしまう"], [1, 2, "ヤギがキャベツを食べてしまう"], [3, 4, "狐が鶏を食べてしまう"], [4, 5, "鶏が米を食べてしまう"], [6, 1, "犬がヤギを追い回してしまう"]], min: 9 }
   };
-  function RiverChallenge({ band, onFinish }) {
+  function RiverChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
     const conf = RIVER_CONF[band] || RIVER_CONF[1];
     const n = conf.items.length;
     const [side, setSide] = import_react3.useState(() => Array(n).fill(true));
@@ -19632,6 +20150,24 @@ React keys must be passed directly to JSX without using spread:
     const [crossings, setCrossings] = import_react3.useState(0);
     const [msg, setMsg] = import_react3.useState("荷物をタップでボートに乗せ、「渡る」を押そう");
     const [cleared, setCleared] = import_react3.useState(false);
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const [revealed, setRevealed] = import_react3.useState(false);
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      setRevealed(true);
+      setFailReveal(true);
+    }, [failRevealSeq]);
+    const solution = import_react3.useMemo(() => riverSolve(conf), [band]);
+    const missLimit = band === 3 ? 4 : 3;
+    const closeWithFail = () => {
+      if (doneRef.current)
+        return;
+      doneRef.current = true;
+      finishRef.current({ passed: false });
+    };
     const doneRef = import_react3.useRef(false);
     const finishRef = import_react3.useRef(onFinish);
     finishRef.current = onFinish;
@@ -19661,9 +20197,9 @@ React keys must be passed directly to JSX without using spread:
         const nm = misses + 1;
         setMisses(nm);
         setLoaded([]);
-        if (nm >= 3) {
+        if (nm >= missLimit) {
           doneRef.current = true;
-          setMsg(`${dangerMsg}…ミス3回で失敗です`);
+          setMsg(`${dangerMsg}…ミス${missLimit}回で失敗です`);
           window.setTimeout(() => finishRef.current({ passed: false }), 800);
         } else {
           setMsg(`${dangerMsg}！ 農夫のいない岸に残してはいけません（ミス ${nm} 回目）。渡航は取り消されました`);
@@ -19696,11 +20232,20 @@ React keys must be passed directly to JSX without using spread:
             style: { background: "var(--surface)", border: "2px solid var(--border)", opacity: isFarmerHere ? 1 : 0.75 }
           }, name)) : ce("span", { className: "text-xs text-[var(--dim)]" }, "なし")));
     };
+    if (revealed) {
+      return ce("div", null,
+        ce("p", { className: "font-display mb-2 text-lg font-extrabold" }, "正解の渡航手順", solution ? `（最短 ${solution.length} 回）` : ""),
+        ce("p", { className: "mb-3 text-sm leading-relaxed" }, "最初の状態から、この順番で渡ると全部の荷物を向こう岸へ運べます。"),
+        solution ? ce("ol", { className: "list-decimal space-y-1.5 pl-5 text-sm leading-relaxed" },
+          solution.map((s, k) => ce("li", { key: k }, s.items.length ? `${s.items.join("・")} を載せて` : "荷物なしで", s.toRight ? "向こう岸へ渡る" : "こちら岸へ戻る"))) : ce("p", { className: "text-sm", style: { color: "#f4212e" } }, "手順を計算できませんでした"),
+        revealCloseBtn(failReveal ? onAnswerClose : closeWithFail, failReveal ? "失敗画面に戻る" : undefined)
+      );
+    }
     return ce("div", null,
       ce("div", { className: "mb-3 flex items-center justify-between" },
         ce("span", { className: "text-sm font-bold" }, "ミス ", ce("span", { style: { color: "#f4212e" } }, "●".repeat(misses)), ce("span", { style: { color: "var(--border)" } }, "●".repeat(Math.max(0, 3 - misses)))),
         ce("span", { className: "text-sm font-bold" }, `${crossings} 回渡航（最短 ${conf.min} 回）`)),
-      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "農夫がボートで荷物を全て向こう岸へ運んでください。ボートの定員は荷物 ", conf.cap, " 個まで（農夫は常に乗ります）。農夫のいない岸に危険な組み合わせを残すとミスになり、ミス3回で失敗です。"),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "農夫がボートで荷物を全て向こう岸へ運んでください。ボートの定員は荷物 ", conf.cap, " 個まで（農夫は常に乗ります）。ボートに乗せた荷物は、「渡る」を押す前ならボート内の荷物をタップすると降ろせます。農夫のいない岸に危険な組み合わせを残すとミスになり、ミス", missLimit, "回で失敗です。"),
       ce("div", { className: "mb-2 flex flex-wrap gap-x-3 gap-y-1" },
         conf.pairs.map(([a, b, text], k) => ce("span", { key: k, className: "rounded-full px-3 py-2 text-[11px] font-bold", style: { background: "#f4212e18", color: "#f4212e" } }, `${conf.items[a]}＋${conf.items[b]} はダメ`))),
       ce("div", { className: "flex items-stretch gap-2" },
@@ -19708,16 +20253,18 @@ React keys must be passed directly to JSX without using spread:
         ce("div", { className: "flex shrink-0 flex-col items-center justify-center rounded-2xl px-1 py-2", style: { width: 86, background: "#38bdf822", border: "2px dashed #38bdf8" } },
           ce("span", { className: "text-[11px] font-bold text-[var(--dim)]" }, "ボート（", farmerLeft ? "左岸" : "右岸", "）"),
           ce("span", { className: "font-display mt-1 text-sm font-extrabold" }, "農夫"),
-          loaded.map((i) => ce("span", { key: i, className: "font-display mt-1 rounded-full bg-[var(--surface)] text-xs font-extrabold", style: { border: "1.5px solid var(--border)", padding: "2px 8px" } }, conf.items[i])),
+          loaded.map((i) => ce("button", { key: i, type: "button", onClick: () => toggleLoad(i), "aria-label": `${conf.items[i]}をボートから降ろす`, className: "font-display mt-1 rounded-full bg-[var(--surface)] text-xs font-extrabold", style: { border: "1.5px solid var(--border)", padding: "2px 8px", cursor: "pointer" } }, conf.items[i])),
           ce("button", { type: "button", onClick: cross, disabled: cleared, className: "font-display mt-2 w-full rounded-full py-2 text-sm font-extrabold text-white", style: { background: "var(--accent)" } }, farmerLeft ? "渡る →" : "← 戻る")),
         bankEl(false)),
-      ce("p", { className: "mt-3 min-h-5 text-center text-sm", role: "status" }, msg)
+      ce("p", { className: "mt-3 min-h-5 text-center text-sm", role: "status" }, msg),
+      !cleared && revealOpenBtn(() => setConfirming(true)),
+      confirming && revealDialog(gate === "practice", () => setConfirming(false), () => { setConfirming(false); setRevealed(true); })
     );
   }
 
   // ---------- Hit & Blow ----------
-  var HITBLOW_CONF = { 1: { len: 3, max: 8 }, 2: { len: 4, max: 8 }, 3: { len: 4, max: 6 } };
-  function HitBlowChallenge({ band, onFinish }) {
+  var HITBLOW_CONF = { 1: { len: 3, max: 8 }, 2: { len: 4, max: 8 }, 3: { len: 4, max: 7 } };
+  function HitBlowChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
     const conf = HITBLOW_CONF[band] || HITBLOW_CONF[1];
     const secret = import_react3.useMemo(() => {
       const first = 1 + Math.floor(Math.random() * 9);
@@ -19728,6 +20275,22 @@ React keys must be passed directly to JSX without using spread:
     const [history, setHistory] = import_react3.useState([]);
     const [msg, setMsg] = import_react3.useState("数字を入力して「判定」を押そう");
     const [cleared, setCleared] = import_react3.useState(false);
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const [revealed, setRevealed] = import_react3.useState(false);
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      setRevealed(true);
+      setFailReveal(true);
+    }, [failRevealSeq]);
+    const closeWithFail = () => {
+      if (doneRef.current)
+        return;
+      doneRef.current = true;
+      finishRef.current({ passed: false });
+    };
     const doneRef = import_react3.useRef(false);
     const finishRef = import_react3.useRef(onFinish);
     finishRef.current = onFinish;
@@ -19745,6 +20308,12 @@ React keys must be passed directly to JSX without using spread:
         return;
       }
       setCurrent([...current, d]);
+      setMsg("");
+    };
+    const removeDigitAt = (i) => {
+      if (doneRef.current || cleared)
+        return;
+      setCurrent(current.filter((_, j) => j !== i));
       setMsg("");
     };
     const judge = () => {
@@ -19773,13 +20342,22 @@ React keys must be passed directly to JSX without using spread:
         setMsg(`ヒット ${hit} ／ ブロー ${blow}（残り ${conf.max - nh.length} 回）`);
       }
     };
+    if (revealed) {
+      return ce("div", null,
+        ce("p", { className: "font-display mb-2 text-lg font-extrabold" }, "秘密の数字は…"),
+        ce("div", { className: "flex justify-center gap-2", style: { margin: "20px 0" } },
+          secret.map((d, i) => ce("span", { key: i, className: "font-display flex h-16 w-14 items-center justify-center rounded-xl text-3xl font-extrabold text-white", style: { background: "var(--accent)" } }, String(d)))),
+        ce("p", { className: "text-center text-sm text-[var(--dim)]" }, "これが正解の数字でした"),
+        revealCloseBtn(failReveal ? onAnswerClose : closeWithFail, failReveal ? "失敗画面に戻る" : undefined)
+      );
+    }
     return ce("div", null,
       ce("div", { className: "mb-3 flex items-center justify-between" },
         ce("span", { className: "font-display rounded-full px-3 py-2 text-sm font-extrabold", style: { background: "var(--surface2)" } }, `${conf.len} 桁`),
         ce("span", { className: "text-sm font-bold" }, `残り ${Math.max(0, conf.max - history.length)} 回`)),
-      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "秘密の数字を当ててください。各桁の数字はすべて異なり、先頭は 0 ではありません。ヒット＝数字と位置が一致、ブロー＝数字だけ一致です。時間制限はなく、回数制限のみです。"),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "秘密の数字を当ててください。各桁の数字はすべて異なり、先頭は 0 ではありません。ヒット＝数字と位置が一致、ブロー＝数字だけ一致です。時間制限はなく、回数制限のみです。入力中の数字は、上のマスをタップするとその桁を消して後ろを詰められます（「消す」ボタンは末尾の1桁を消します）。"),
       ce("div", { className: "mb-3 flex justify-center gap-2" },
-        Array.from({ length: conf.len }, (_, i) => ce("span", { key: i, className: "font-display flex h-14 w-12 items-center justify-center rounded-xl text-2xl font-extrabold", style: { background: "var(--surface2)", border: "2px solid var(--border)" } }, current[i] !== undefined ? String(current[i]) : "・"))),
+        Array.from({ length: conf.len }, (_, i) => current[i] !== undefined ? ce("button", { key: i, type: "button", onClick: () => removeDigitAt(i), "aria-label": `${i + 1}桁目の ${current[i]} を消す`, className: "font-display flex h-14 w-12 items-center justify-center rounded-xl text-2xl font-extrabold", style: { background: "var(--surface2)", border: "2px solid var(--accent)", cursor: "pointer" } }, String(current[i])) : ce("span", { key: i, className: "font-display flex h-14 w-12 items-center justify-center rounded-xl text-2xl font-extrabold", style: { background: "var(--surface2)", border: "2px solid var(--border)" } }, "・"))),
       ce("div", { className: "mx-auto grid w-full gap-2", style: { maxWidth: 300, gridTemplateColumns: "repeat(5, minmax(0, 1fr))" } },
         [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((d) => ce("button", {
           key: d, type: "button", onClick: () => pressDigit(d), disabled: current.includes(d) || cleared,
@@ -19795,7 +20373,9 @@ React keys must be passed directly to JSX without using spread:
         ce("ul", { className: "mt-1.5 divide-y", style: { borderColor: "var(--border)" } },
           [...history].reverse().map((h, ri) => ce("li", { key: ri, className: "flex items-center justify-between py-2 text-sm" },
             ce("span", { className: "font-display text-base font-extrabold tracking-widest" }, h.guess.join("")),
-            ce("span", null, ce("span", { className: "font-bold", style: { color: "#65a30d" } }, `ヒット ${h.hit}`), " ／ ", ce("span", { className: "font-bold", style: { color: "#d97706" } }, `ブロー ${h.blow}`))))))
+            ce("span", null, ce("span", { className: "font-bold", style: { color: "#65a30d" } }, `ヒット ${h.hit}`), " ／ ", ce("span", { className: "font-bold", style: { color: "#d97706" } }, `ブロー ${h.blow}`)))))),
+      !cleared && revealOpenBtn(() => setConfirming(true)),
+      confirming && revealDialog(gate === "practice", () => setConfirming(false), () => { setConfirming(false); setRevealed(true); })
     );
   }
 
@@ -19837,7 +20417,7 @@ React keys must be passed directly to JSX without using spread:
     }
     return { pts, edges };
   }
-  function StrokeChallenge({ band, onFinish }) {
+  function StrokeChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
     const conf = STROKE_CONF[band] || STROKE_CONF[1];
     const fig = import_react3.useMemo(() => strokeGenerateFig(conf.n, conf.extras), [band]);
     const [used, setUsed] = import_react3.useState(() => []);
@@ -19854,7 +20434,20 @@ React keys must be passed directly to JSX without using spread:
       doneRef.current = true;
       finishRef.current({ passed });
     }, []);
-    const left = useNgCountdown(conf.time, !cleared, () => finish(false));
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const [revealed, setRevealed] = import_react3.useState(false);
+    const revealedRef = import_react3.useRef(false);
+    const solution = import_react3.useMemo(() => strokeSolution(fig), [fig]);
+    const left = useNgCountdown(conf.time, !cleared, () => { if (!revealedRef.current) finish(false); });
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      revealedRef.current = true;
+      setRevealed(true);
+      setFailReveal(true);
+    }, [failRevealSeq]);
     const current = nodeStack.length ? nodeStack[nodeStack.length - 1] : null;
     const edgeIndex = import_react3.useMemo(() => {
       const m = new Map();
@@ -19923,6 +20516,36 @@ React keys must be passed directly to JSX without using spread:
       setUsed([]);
       setNodeStack([]);
     };
+    if (revealed) {
+      return ce("div", null,
+        ce("p", { className: "font-display mb-2 text-lg font-extrabold" }, "正解ルート"),
+        ce("p", { className: "mb-3 text-sm leading-relaxed" }, "番号の順に線をたどると、全部の線を1回ずつなぞれます。スタートはどの点からでも構いません（逆順でもたどれます）。"),
+        solution ? ce("svg", {
+          viewBox: "0 0 300 300", className: "mx-auto w-full select-none rounded-2xl",
+          style: { background: "var(--surface2)", aspectRatio: "1", maxWidth: 400 }
+        },
+          fig.edges.map(([u, v], i) => ce("line", {
+            key: "e" + i, x1: fig.pts[u].x, y1: fig.pts[u].y, x2: fig.pts[v].x, y2: fig.pts[v].y,
+            stroke: "var(--dim)", strokeWidth: 4, strokeLinecap: "round", opacity: 0.4
+          })),
+          ce("polyline", {
+            points: solution.nodes.map((ni) => `${fig.pts[ni].x},${fig.pts[ni].y}`).join(" "),
+            fill: "none", stroke: "var(--accent)", strokeWidth: 3, strokeDasharray: "6 5", strokeLinecap: "round", opacity: 0.9
+          }),
+          solution.edges.map((ei, k) => {
+            const [u, v] = fig.edges[ei];
+            const mx = (fig.pts[u].x + fig.pts[v].x) / 2, my = (fig.pts[u].y + fig.pts[v].y) / 2;
+            return ce("g", { key: "n" + k },
+              ce("circle", { cx: mx, cy: my, r: 9.5, fill: "#0f1419" }),
+              ce("text", { x: mx, y: my + 3.5, textAnchor: "middle", fontSize: 10, fontWeight: 800, fill: "#ffffff" }, String(k + 1)));
+          }),
+          fig.pts.map((p, i) => ce("circle", {
+            key: "p" + i, cx: p.x, cy: p.y, r: solution.nodes[0] === i ? 12 : 9,
+            fill: solution.nodes[0] === i ? "#65a30d" : "var(--surface)", stroke: "var(--text)", strokeWidth: 2.5
+          }))) : ce("p", { className: "text-sm", style: { color: "#f4212e" } }, "ルートを計算できませんでした"),
+        revealCloseBtn(failReveal ? onAnswerClose : () => finish(false), failReveal ? "失敗画面に戻る" : undefined)
+      );
+    }
     return ce("div", null,
       ngHeader(left, `線 ${fig.edges.length} 本`, `${used.length} / ${fig.edges.length} 本`),
       ce("p", { className: "mb-3 text-sm leading-relaxed" }, "好きな点から始めて、指を離さずにすべての線を1回ずつなぞってください（同じ線は2回なぞれません）。行き詰まったら「1つ戻す」か「やり直し」を使えます。"),
@@ -19947,7 +20570,528 @@ React keys must be passed directly to JSX without using spread:
       current === null && ce("p", { className: "mt-2 text-center text-xs text-[var(--dim)]" }, "どれかの点をタップしてスタート"),
       ce("div", { className: "mt-3 flex justify-center gap-2" },
         ngBtn("1つ戻す", undo, { disabled: !used.length || cleared }),
-        ngBtn("やり直し", restart, { disabled: cleared }))
+        ngBtn("やり直し", restart, { disabled: cleared })),
+      !cleared && revealOpenBtn(() => setConfirming(true)),
+      confirming && revealDialog(gate === "practice", () => setConfirming(false), () => { setConfirming(false); revealedRef.current = true; setRevealed(true); })
+    );
+  }
+
+  // ---------- NumberLink ----------
+  var NUMLINK_CONF = { 1: { size: 5, pairs: 4, time: 90 }, 2: { size: 6, pairs: 5, time: 120 }, 3: { size: 7, pairs: 6, time: 180 } };
+  var NUMLINK_COLORS = ["#e02424", "#1d9bf0", "#65a30d", "#f59e0b", "#ec4899", "#14b8a6"];
+  function nlHamiltonian(size) {
+    const seq = [];
+    for (let y = 0; y < size; y++) {
+      if (y % 2 === 0) {
+        for (let x = 0; x < size; x++) seq.push(y * size + x);
+      } else {
+        for (let x = size - 1; x >= 0; x--) seq.push(y * size + x);
+      }
+    }
+    const pos = new Map();
+    const reindex = () => { pos.clear(); seq.forEach((c, i) => pos.set(c, i)); };
+    reindex();
+    const tryFlip = (p1, p2, q1, q2) => {
+      const ip1 = pos.get(p1), ip2 = pos.get(p2), iq1 = pos.get(q1), iq2 = pos.get(q2);
+      if (Math.abs(ip1 - ip2) !== 1 || Math.abs(iq1 - iq2) !== 1)
+        return;
+      if (ip2 - ip1 !== iq2 - iq1)
+        return;
+      let p, q;
+      if (Math.min(ip1, ip2) < Math.min(iq1, iq2)) { p = Math.max(ip1, ip2); q = Math.min(iq1, iq2); }
+      else { p = Math.max(iq1, iq2); q = Math.min(ip1, ip2); }
+      let lo = p, hi = q;
+      while (lo < hi) { const t = seq[lo]; seq[lo] = seq[hi]; seq[hi] = t; lo++; hi--; }
+      reindex();
+    };
+    for (let t = 0; t < size * size * 4; t++) {
+      const x = Math.floor(Math.random() * (size - 1)), y = Math.floor(Math.random() * (size - 1));
+      const a = y * size + x, b = a + 1, c = a + size, d = c + 1;
+      if (Math.random() < 0.5)
+        tryFlip(a, b, c, d);
+      else
+        tryFlip(a, c, b, d);
+    }
+    return seq;
+  }
+  function nlGenerate(size, pairs) {
+    const seq = nlHamiltonian(size);
+    const total = size * size;
+    const lens = Array(pairs).fill(3);
+    let rem = total - 3 * pairs;
+    let guard = 0;
+    while (rem > 0 && guard++ < 1000) {
+      const k = Math.floor(Math.random() * pairs);
+      if (lens[k] < 11) { lens[k]++; rem--; }
+    }
+    const ends = {};
+    const sol = [];
+    let idx = 0;
+    for (let k = 0; k < pairs; k++) {
+      const chunk = seq.slice(idx, idx + lens[k]);
+      idx += lens[k];
+      sol.push(chunk);
+      ends[chunk[0]] = k;
+      ends[chunk[chunk.length - 1]] = k;
+    }
+    return { ends, sol };
+  }
+  function NumLinkChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
+    const conf = NUMLINK_CONF[band] || NUMLINK_CONF[1];
+    const size = conf.size;
+    const puzzle = import_react3.useMemo(() => nlGenerate(size, conf.pairs), [band]);
+    const pathsRef = import_react3.useRef(null);
+    if (pathsRef.current === null)
+      pathsRef.current = Array.from({ length: conf.pairs }, () => []);
+    const activeRef = import_react3.useRef(null);
+    const boardRef = import_react3.useRef(null);
+    const [, setVer] = import_react3.useState(0);
+    const [cleared, setCleared] = import_react3.useState(false);
+    const doneRef = import_react3.useRef(false);
+    const finishRef = import_react3.useRef(onFinish);
+    finishRef.current = onFinish;
+    const finish = import_react3.useCallback((passed) => {
+      if (doneRef.current)
+        return;
+      doneRef.current = true;
+      finishRef.current({ passed });
+    }, []);
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const [revealed, setRevealed] = import_react3.useState(false);
+    const revealedRef = import_react3.useRef(false);
+    const left = useNgCountdown(conf.time, !cleared, () => { if (!revealedRef.current) finish(false); });
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      revealedRef.current = true;
+      setRevealed(true);
+      setFailReveal(true);
+    }, [failRevealSeq]);
+    const paths = pathsRef.current;
+    const owner = import_react3.useMemo(() => {
+      const m = {};
+      paths.forEach((p, k) => p.forEach((c) => { m[c] = k; }));
+      return m;
+    }, [paths, cleared]);
+    const covered = paths.reduce((a, p) => a + p.length, 0);
+    const checkWin = (ps) => {
+      const cov = ps.reduce((a, p) => a + p.length, 0);
+      if (cov !== size * size)
+        return false;
+      return ps.every((p, k) => p.length >= 2 && puzzle.ends[p[0]] === k && puzzle.ends[p[p.length - 1]] === k);
+    };
+    const cellFromEvent = (e) => {
+      const board = boardRef.current;
+      if (!board)
+        return null;
+      const rect = board.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / rect.width * size);
+      const y = Math.floor((e.clientY - rect.top) / rect.height * size);
+      if (x < 0 || x >= size || y < 0 || y >= size)
+        return null;
+      return y * size + x;
+    };
+    const extendTo = (cell) => {
+      const k = activeRef.current;
+      if (k === null || doneRef.current || cleared)
+        return;
+      const ps = pathsRef.current;
+      const path = ps[k];
+      if (!path.length)
+        return;
+      const last = path[path.length - 1];
+      if (cell === last)
+        return;
+      let np = null;
+      if (path.length >= 2 && cell === path[path.length - 2]) {
+        np = path.slice(0, -1);
+      } else {
+        const lx = last % size, ly = Math.floor(last / size), cx = cell % size, cy = Math.floor(cell / size);
+        if (Math.abs(cx - lx) + Math.abs(cy - ly) !== 1)
+          return;
+        const inIdx = path.indexOf(cell);
+        if (inIdx >= 0) {
+          np = path.slice(0, inIdx + 1);
+        } else {
+          if (owner[cell] !== undefined && owner[cell] !== k)
+            return;
+          if (puzzle.ends[cell] !== undefined && puzzle.ends[cell] !== k)
+            return;
+          if (path.length > 1 && puzzle.ends[last] === k)
+            return;
+          np = [...path, cell];
+        }
+      }
+      if (!np)
+        return;
+      const next = ps.map((p, j) => j === k ? np : p);
+      pathsRef.current = next;
+      setVer((v) => v + 1);
+      if (checkWin(next)) {
+        setCleared(true);
+        window.setTimeout(() => finish(true), 500);
+      }
+    };
+    const onPointerDown = (e) => {
+      if (doneRef.current || cleared)
+        return;
+      const cell = cellFromEvent(e);
+      if (cell === null)
+        return;
+      e.preventDefault();
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+      let k = null;
+      if (puzzle.ends[cell] !== undefined) {
+        k = puzzle.ends[cell];
+        const next = pathsRef.current.map((p, j) => j === k ? [cell] : p);
+        pathsRef.current = next;
+        setVer((v) => v + 1);
+      } else if (owner[cell] !== undefined) {
+        k = owner[cell];
+        const p = pathsRef.current[k];
+        const idx = p.indexOf(cell);
+        const next = pathsRef.current.map((pp, j) => j === k ? pp.slice(0, idx + 1) : pp);
+        pathsRef.current = next;
+        setVer((v) => v + 1);
+      }
+      activeRef.current = k;
+    };
+    const onPointerMove = (e) => {
+      if (activeRef.current === null)
+        return;
+      const cell = cellFromEvent(e);
+      if (cell !== null)
+        extendTo(cell);
+    };
+    const onPointerUp = () => { activeRef.current = null; };
+    const resetAll = () => {
+      if (doneRef.current || cleared)
+        return;
+      pathsRef.current = Array.from({ length: conf.pairs }, () => []);
+      activeRef.current = null;
+      setVer((v) => v + 1);
+    };
+    if (revealed) {
+      const solOwner = {};
+      puzzle.sol.forEach((p, k) => p.forEach((c) => { solOwner[c] = k; }));
+      const solCells = [];
+      for (let i = 0; i < size * size; i++) {
+        const endK = puzzle.ends[i];
+        const ownK = solOwner[i];
+        const isEnd = endK !== undefined;
+        const col = ownK !== undefined ? NUMLINK_COLORS[ownK] : null;
+        solCells.push(ce("div", {
+          key: i,
+          className: "flex items-center justify-center rounded-lg select-none",
+          style: {
+            aspectRatio: "1",
+            background: isEnd ? col : col ? col + "4d" : "var(--surface)",
+            border: isEnd ? "none" : "1px solid var(--border)",
+            pointerEvents: "none"
+          }
+        }, isEnd ? ce("span", { className: "font-display font-extrabold text-white", style: { fontSize: size >= 7 ? 15 : 18 } }, String(endK + 1)) : ownK !== undefined ? ce("span", { className: "rounded-full", style: { width: 10, height: 10, background: col } }) : null));
+      }
+      return ce("div", null,
+        ce("p", { className: "font-display mb-2 text-lg font-extrabold" }, "正解ルート"),
+        ce("p", { className: "mb-3 text-sm leading-relaxed" }, "同じ数字同士をこのルートでつなぐと、すべてのマスが埋まります。"),
+        ce("div", { className: "mx-auto grid w-full gap-1", style: { maxWidth: 400, gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` } }, solCells),
+        revealCloseBtn(failReveal ? onAnswerClose : () => finish(false), failReveal ? "失敗画面に戻る" : undefined)
+      );
+    }
+    const cells = [];
+    for (let i = 0; i < size * size; i++) {
+      const endK = puzzle.ends[i];
+      const ownK = owner[i];
+      const isEnd = endK !== undefined;
+      const col = isEnd ? NUMLINK_COLORS[endK] : ownK !== undefined ? NUMLINK_COLORS[ownK] : null;
+      const isHead = ownK !== undefined && paths[ownK][paths[ownK].length - 1] === i;
+      cells.push(ce("div", {
+        key: i,
+        className: "flex items-center justify-center rounded-lg select-none",
+        style: {
+          aspectRatio: "1",
+          background: isEnd ? col : col ? col + "4d" : "var(--surface)",
+          border: isEnd ? "none" : "1px solid var(--border)",
+          boxShadow: isHead ? "inset 0 0 0 3px var(--text)" : "none",
+          pointerEvents: "none"
+        }
+      }, isEnd ? ce("span", { className: "font-display font-extrabold text-white", style: { fontSize: size >= 7 ? 15 : 18 } }, String(endK + 1)) : ownK !== undefined ? ce("span", { className: "rounded-full", style: { width: 10, height: 10, background: col } }) : null));
+    }
+    return ce("div", null,
+      ngHeader(left, `${size}×${size} ／ ${conf.pairs} ペア`, `${covered} / ${size * size} マス`),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "数字のマスから指でなぞって同じ数字同士をつなぎ、すべてのマスを埋めてください。数字のマスをタップすると、その色の線を引き直せます。"),
+      ce("div", {
+        ref: boardRef,
+        className: "mx-auto grid w-full touch-none gap-1",
+        style: { maxWidth: 400, gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` },
+        onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp
+      }, cells),
+      cleared && ce("p", { className: "mt-3 text-center font-display text-lg font-extrabold", style: { color: "#65a30d" } }, "全部つながりました！"),
+      ce("div", { className: "mt-4 flex justify-center gap-2" },
+        ngBtn("最初から", resetAll, { disabled: cleared })),
+      !cleared && revealOpenBtn(() => setConfirming(true)),
+      confirming && revealDialog(gate === "practice", () => setConfirming(false), () => { setConfirming(false); revealedRef.current = true; setRevealed(true); })
+    );
+  }
+
+  // ---------- Slide Puzzle ----------
+  var SLIDE_CONF = { 1: { size: 3, moves: 25, time: 120 }, 2: { size: 3, moves: 60, time: 120 }, 3: { size: 4, moves: 90, time: 180 } };
+  function slideGenerate(size, moves) {
+    const n = size * size;
+    const tiles = Array.from({ length: n }, (_, i) => (i + 1) % n);
+    let blank = n - 1, prev = -1;
+    const blankTrail = [];
+    for (let m = 0; m < moves; m++) {
+      const bx = blank % size, by = Math.floor(blank / size);
+      const opts = [];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = bx + dx, ny = by + dy;
+        if (nx >= 0 && nx < size && ny >= 0 && ny < size) {
+          const idx = ny * size + nx;
+          if (idx !== prev)
+            opts.push(idx);
+        }
+      }
+      const pick = opts[Math.floor(Math.random() * opts.length)];
+      blankTrail.push(blank);
+      tiles[blank] = tiles[pick];
+      tiles[pick] = 0;
+      prev = blank;
+      blank = pick;
+    }
+    if (tiles.every((v, i) => v === (i + 1) % n))
+      return slideGenerate(size, moves);
+    return { tiles, sol: blankTrail.slice().reverse() };
+  }
+  function SlideChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
+    const conf = SLIDE_CONF[band] || SLIDE_CONF[1];
+    const size = conf.size, n = size * size;
+    const puzzle = import_react3.useMemo(() => slideGenerate(size, conf.moves), [band]);
+    const initial = puzzle.tiles;
+    const [tiles, setTiles] = import_react3.useState(() => initial);
+    const [moves, setMoves] = import_react3.useState(0);
+    const [cleared, setCleared] = import_react3.useState(false);
+    const doneRef = import_react3.useRef(false);
+    const finishRef = import_react3.useRef(onFinish);
+    finishRef.current = onFinish;
+    const finish = import_react3.useCallback((passed) => {
+      if (doneRef.current)
+        return;
+      doneRef.current = true;
+      finishRef.current({ passed });
+    }, []);
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const [revealed, setRevealed] = import_react3.useState(false);
+    const [solIdx, setSolIdx] = import_react3.useState(0);
+    const [autoPlay, setAutoPlay] = import_react3.useState(false);
+    const revealedRef = import_react3.useRef(false);
+    const left = useNgCountdown(conf.time, !cleared, () => { if (!revealedRef.current) finish(false); });
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      revealedRef.current = true;
+      setRevealed(true);
+      setFailReveal(true);
+    }, [failRevealSeq]);
+    const solStates = import_react3.useMemo(() => {
+      if (!revealed)
+        return null;
+      const states = [initial];
+      let cur = initial;
+      for (const tap of puzzle.sol) {
+        const bl = cur.indexOf(0);
+        const nt = [...cur];
+        nt[bl] = nt[tap];
+        nt[tap] = 0;
+        states.push(nt);
+        cur = nt;
+      }
+      return states;
+    }, [revealed]);
+    import_react3.useEffect(() => {
+      if (!autoPlay || !solStates)
+        return;
+      const iv = window.setInterval(() => setSolIdx((i) => Math.min(i + 1, solStates.length - 1)), 450);
+      return () => window.clearInterval(iv);
+    }, [autoPlay, solStates]);
+    import_react3.useEffect(() => {
+      if (solStates && solIdx >= solStates.length - 1)
+        setAutoPlay(false);
+    }, [solIdx, solStates]);
+    const tapTile = (i) => {
+      if (doneRef.current || cleared)
+        return;
+      const blank = tiles.indexOf(0);
+      const bx = blank % size, by = Math.floor(blank / size), x = i % size, y = Math.floor(i / size);
+      if (Math.abs(bx - x) + Math.abs(by - y) !== 1)
+        return;
+      const nt = [...tiles];
+      nt[blank] = nt[i];
+      nt[i] = 0;
+      setTiles(nt);
+      setMoves((m) => m + 1);
+      if (nt.every((v, j) => v === (j + 1) % n)) {
+        setCleared(true);
+        window.setTimeout(() => finish(true), 500);
+      }
+    };
+    if (revealed && solStates) {
+      const totalSteps = solStates.length - 1;
+      const dispTiles = solStates[Math.min(solIdx, totalSteps)];
+      return ce("div", null,
+        ce("p", { className: "font-display mb-2 text-lg font-extrabold" }, "解法（シャッフルの逆再生）"),
+        ce("p", { className: "mb-3 text-sm text-[var(--dim)]" }, `手順 ${Math.min(solIdx, totalSteps)} / ${totalSteps}`),
+        ce("div", { className: "mx-auto grid w-full gap-1.5", style: { maxWidth: 360, gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` } },
+          dispTiles.map((v, i) => ce("div", {
+            key: i,
+            className: "font-display flex aspect-square items-center justify-center rounded-xl text-2xl font-extrabold",
+            style: v === 0 ? { background: "var(--surface2)", boxShadow: "inset 0 0 0 1px var(--border)" } : { background: "var(--accent)", color: "#fff", boxShadow: "0 2px 6px #0003" }
+          }, v === 0 ? "" : String(v)))),
+        ce("div", { className: "mt-4 flex justify-center gap-2" },
+          ngBtn("◀ 前へ", () => setSolIdx((i) => Math.max(0, i - 1)), { disabled: solIdx <= 0 }),
+          ngBtn(autoPlay ? "止める" : "自動再生", () => setAutoPlay((a) => !a), { disabled: solIdx >= totalSteps && !autoPlay }),
+          ngBtn("次へ ▶", () => setSolIdx((i) => Math.min(totalSteps, i + 1)), { disabled: solIdx >= totalSteps })),
+        revealCloseBtn(failReveal ? onAnswerClose : () => finish(false), failReveal ? "失敗画面に戻る" : undefined)
+      );
+    }
+    return ce("div", null,
+      ngHeader(left, `${size}×${size} スライドパズル`, `${moves} 手`),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "空きマスに隣り合うパネルをタップして動かし、数字を左上から順に並べてください。"),
+      ce("div", { className: "mx-auto grid w-full gap-1.5", style: { maxWidth: 360, gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` } },
+        tiles.map((v, i) => ce("button", {
+          key: i, type: "button", onClick: () => tapTile(i), disabled: v === 0,
+          "aria-label": v === 0 ? "空きマス" : `パネル ${v}`,
+          className: "font-display flex aspect-square items-center justify-center rounded-xl text-2xl font-extrabold",
+          style: v === 0 ? { background: "var(--surface2)", boxShadow: "inset 0 0 0 1px var(--border)" } : { background: "var(--accent)", color: "#fff", boxShadow: "0 2px 6px #0003" }
+        }, v === 0 ? "" : String(v)))),
+      cleared && ce("p", { className: "mt-3 text-center font-display text-lg font-extrabold", style: { color: "#65a30d" } }, "完成！"),
+      ce("div", { className: "mt-4 flex justify-center gap-2" },
+        ngBtn("最初から", () => { if (!doneRef.current && !cleared) { setTiles(initial); setMoves(0); } }, { disabled: cleared })),
+      !cleared && revealOpenBtn(() => setConfirming(true)),
+      confirming && revealDialog(gate === "practice", () => setConfirming(false), () => { setConfirming(false); revealedRef.current = true; setRevealed(true); })
+    );
+  }
+
+  // ---------- Tower of Hanoi ----------
+  var HANOI_CONF = { 1: { discs: 3, time: 60 }, 2: { discs: 4, time: 100 }, 3: { discs: 5, time: 180 } };
+  var HANOI_COLORS = ["#e02424", "#f59e0b", "#65a30d", "#1d9bf0", "#ec4899"];
+  function HanoiChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
+    const conf = HANOI_CONF[band] || HANOI_CONF[1];
+    const nd = conf.discs;
+    const minMoves = Math.pow(2, nd) - 1;
+    const [pegs, setPegs] = import_react3.useState(() => [Array.from({ length: nd }, (_, i) => nd - i), [], []]);
+    const [sel, setSel] = import_react3.useState(null);
+    const [moves, setMoves] = import_react3.useState(0);
+    const [msg, setMsg] = import_react3.useState("棒をタップして一番上の円盤を持ち上げ、移したい棒をタップしよう");
+    const [cleared, setCleared] = import_react3.useState(false);
+    const doneRef = import_react3.useRef(false);
+    const finishRef = import_react3.useRef(onFinish);
+    finishRef.current = onFinish;
+    const finish = import_react3.useCallback((passed) => {
+      if (doneRef.current)
+        return;
+      doneRef.current = true;
+      finishRef.current({ passed });
+    }, []);
+    const [confirming, setConfirming] = import_react3.useState(false);
+    const [revealed, setRevealed] = import_react3.useState(false);
+    const revealedRef = import_react3.useRef(false);
+    const left = useNgCountdown(conf.time, !cleared, () => { if (!revealedRef.current) finish(false); });
+    const [failReveal, setFailReveal] = import_react3.useState(false);
+    import_react3.useEffect(() => {
+      if (!failRevealSeq)
+        return;
+      setConfirming(false);
+      revealedRef.current = true;
+      setRevealed(true);
+      setFailReveal(true);
+    }, [failRevealSeq]);
+    const solMoves = import_react3.useMemo(() => {
+      const mv = [];
+      const rec = (k, from, to, aux) => {
+        if (k === 0)
+          return;
+        rec(k - 1, from, aux, to);
+        mv.push([k, from, to]);
+        rec(k - 1, aux, to, from);
+      };
+      rec(nd, 0, 2, 1);
+      return mv;
+    }, [nd]);
+    const tapPeg = (p) => {
+      if (doneRef.current || cleared)
+        return;
+      if (sel === null) {
+        if (pegs[p].length)
+          setSel(p);
+        return;
+      }
+      if (sel === p) {
+        setSel(null);
+        return;
+      }
+      const disc = pegs[sel][pegs[sel].length - 1];
+      const destTop = pegs[p][pegs[p].length - 1];
+      if (destTop !== undefined && destTop < disc) {
+        setMsg("小さい円盤の上に大きい円盤は置けません");
+        setSel(null);
+        return;
+      }
+      const np = pegs.map((pg) => [...pg]);
+      np[sel].pop();
+      np[p].push(disc);
+      setPegs(np);
+      setSel(null);
+      const nm = moves + 1;
+      setMoves(nm);
+      if (np[1].length === nd || np[2].length === nd) {
+        setCleared(true);
+        setMsg(`全部移せました！（${nm} 手 ／ 最短 ${minMoves} 手）`);
+        window.setTimeout(() => finish(true), 600);
+      } else {
+        setMsg("棒をタップして一番上の円盤を持ち上げ、移したい棒をタップしよう");
+      }
+    };
+    if (revealed) {
+      const pegName = ["左の棒", "真ん中の棒", "右の棒"];
+      return ce("div", null,
+        ce("p", { className: "font-display mb-2 text-lg font-extrabold" }, "最小手順", `（全 ${solMoves.length} 手）`),
+        ce("p", { className: "mb-3 text-sm leading-relaxed" }, "最初の状態から、すべての円盤を右の棒へ移す最短の手順です（円盤の数字が大きいほど大きい円盤です）。"),
+        ce("ol", { className: "list-decimal space-y-1.5 pl-5 text-sm leading-relaxed" },
+          solMoves.map(([disc, from, to], k) => ce("li", { key: k }, `円盤${disc}を${pegName[from]}から${pegName[to]}へ`))),
+        revealCloseBtn(failReveal ? onAnswerClose : () => finish(false), failReveal ? "失敗画面に戻る" : undefined)
+      );
+    }
+    return ce("div", null,
+      ngHeader(left, `円盤 ${nd} 枚 ／ 最短 ${minMoves} 手`, `${moves} 手`),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "すべての円盤を、左以外のどれか1本の棒へそっくり移せばクリアです。"),
+      ce("div", { className: "flex items-end justify-center gap-2" },
+        pegs.map((pg, p) => ce("button", {
+          key: p, type: "button", onClick: () => tapPeg(p), "aria-label": `棒 ${p + 1}`,
+          className: "relative flex flex-col items-center justify-end rounded-xl px-1",
+          style: { width: "31%", height: 190, background: sel === p ? "var(--surface2)" : "transparent", boxShadow: sel === p ? "inset 0 0 0 2px var(--accent)" : "inset 0 0 0 1px var(--border)" }
+        },
+          ce("div", { className: "absolute rounded-full", style: { left: "50%", top: 8, bottom: 24, width: 6, transform: "translateX(-50%)", background: "var(--dim)", opacity: 0.5 } }),
+          pg.slice().reverse().map((d, di) => ce("div", {
+            key: d,
+            className: "relative z-10 mb-1 flex items-center justify-center rounded-full font-display text-xs font-extrabold text-white",
+            style: {
+              width: `${30 + (d / nd) * 68}%`, height: 24,
+              background: HANOI_COLORS[(d - 1) % HANOI_COLORS.length],
+              transform: sel === p && di === 0 ? "translateY(-14px)" : "none",
+              boxShadow: sel === p && di === 0 ? "0 4px 10px #0004" : "none"
+            }
+          }, String(d))),
+          ce("div", { className: "relative z-10 mt-1 h-2 w-full rounded-full", style: { background: "var(--dim)", opacity: 0.6 } })
+        ))),
+      ce("p", { className: "mt-3 min-h-5 text-center text-sm", role: "status" }, msg),
+      cleared && ce("p", { className: "text-center font-display text-lg font-extrabold", style: { color: "#65a30d" } }, "クリア！"),
+      !cleared && revealOpenBtn(() => setConfirming(true)),
+      confirming && revealDialog(gate === "practice", () => setConfirming(false), () => { setConfirming(false); revealedRef.current = true; setRevealed(true); })
     );
   }
 
@@ -19957,55 +21101,106 @@ React keys must be passed directly to JSX without using spread:
     band,
     onFinish,
     gate,
-    milestoneMax
+    milestoneMax,
+    failRevealSeq,
+    onAnswerClose
   }) {
     if (type === "shogi")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(ShogiChallenge, {
         band,
         onFinish,
-        milestoneMax
+        milestoneMax,
+        gate,
+        failRevealSeq,
+        onAnswerClose
       }, undefined, false, undefined, this);
     if (type === "rush")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(RushChallenge, {
         band,
-        onFinish
+        onFinish,
+        gate,
+        milestoneMax,
+        failRevealSeq,
+        onAnswerClose
       }, undefined, false, undefined, this);
     if (type === "match")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(MatchChallenge, {
         band,
-        onFinish
+        onFinish,
+        gate,
+        failRevealSeq,
+        onAnswerClose
       }, undefined, false, undefined, this);
     if (type === "lights")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(LightsChallenge, {
         band,
-        onFinish
+        onFinish,
+        gate,
+        failRevealSeq,
+        onAnswerClose
       }, undefined, false, undefined, this);
     if (type === "river")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(RiverChallenge, {
         band,
-        onFinish
+        onFinish,
+        gate,
+        failRevealSeq,
+        onAnswerClose
       }, undefined, false, undefined, this);
     if (type === "hitblow")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(HitBlowChallenge, {
         band,
-        onFinish
+        onFinish,
+        gate,
+        failRevealSeq,
+        onAnswerClose
       }, undefined, false, undefined, this);
     if (type === "stroke")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(StrokeChallenge, {
         band,
-        onFinish
+        onFinish,
+        gate,
+        failRevealSeq,
+        onAnswerClose
+      }, undefined, false, undefined, this);
+    if (type === "numlink")
+      return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(NumLinkChallenge, {
+        band,
+        onFinish,
+        gate,
+        failRevealSeq,
+        onAnswerClose
+      }, undefined, false, undefined, this);
+    if (type === "slide")
+      return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(SlideChallenge, {
+        band,
+        onFinish,
+        gate,
+        failRevealSeq,
+        onAnswerClose
+      }, undefined, false, undefined, this);
+    if (type === "hanoi")
+      return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(HanoiChallenge, {
+        band,
+        onFinish,
+        gate,
+        failRevealSeq,
+        onAnswerClose
       }, undefined, false, undefined, this);
     return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(RhythmChallenge, {
       level,
       band,
-      onFinish
+      onFinish,
+      gate,
+      failRevealSeq,
+      onAnswerClose
     }, undefined, false, undefined, this);
   }
 
   // src/App.tsx
   var jsx_dev_runtime2 = __toESM(require_jsx_dev_runtime());
-  var CHALLENGE_TYPES = ["rhythm", "shogi", "rush", "match", "lights", "river", "hitblow", "stroke"];
-  var GATE_TYPE_WEIGHTS = { rhythm: 1, shogi: 1, rush: 1, match: 1, lights: 1, river: 1, hitblow: 1, stroke: 1 };
+  var CHALLENGE_TYPES = ["rhythm", "shogi", "rush", "match", "lights", "river", "hitblow", "stroke", "numlink", "slide", "hanoi"];
+  var GATE_TYPE_WEIGHTS = { rhythm: 1, shogi: 1, rush: 1, match: 1, lights: 1, river: 1, hitblow: 1, stroke: 1, numlink: 1, slide: 1, hanoi: 1 };
   function pickGateType() {
     const total = CHALLENGE_TYPES.reduce((a, t) => a + (GATE_TYPE_WEIGHTS[t] ?? 1), 0);
     let r = Math.random() * total;
@@ -20025,18 +21220,24 @@ React keys must be passed directly to JSX without using spread:
       return `2小節（8拍）のリズムを、音と光で1回だけ聞かせます。そのあと1小節（4拍）のカウントインが入ってから、続く2小節でクリックの拍に合わせて大きなTAPボタンを叩き、同じリズムを再現してください。カウントイン中もボタンは押せて、最初の打点は少し早めでも判定の範囲内ならヒットになります。打点は${lo}〜${hi}か所。見逃しと余計なタップはミスになり、ミス3回で失敗です。`;
     }
     if (type === "rush")
-      return `6×6の盤面で車をドラッグして前後にスライドさせ、赤い車（自車）を右端の出口まで到達させればクリアです。制限時間は帯により90〜120秒。「1手戻す」「最初から」ボタンで立て直せます。問題は全問ソルバー（BFS）で解けることと最短手数を確認済みのプールから出題します（易しい帯：最短7〜13手／普通帯：17〜26手／難しい帯：30手以上）。`;
+      return `6×6の盤面で車をドラッグして前後にスライドさせ、赤い車（自車）を右端の出口まで到達させればクリアです。制限時間は帯により90〜180秒。「1手戻す」「最初から」ボタンで立て直せます。問題は全問ソルバー（BFS）で解けることと最短手数を確認済みのプールから出題します（易しい帯：最短7〜13手／普通帯：17〜26手／難しい帯：30手以上）。`;
     if (type === "match")
-      return `マッチ棒で作られた等式を、ちょうど1本だけ動かして正しい式にすればクリアです。マッチをタップで選び、置きたい位置をタップして移動し、「決定」ボタンで判定します。間違えたらミス1回、ミス3回で失敗です（移動自体は決定前なら何度でもやり直せます）。問題は「1本の移動で正しくなる解がちょうど1通り」であることを全数チェックで検証済みです。`;
+      return `マッチ棒で作られた等式を、ちょうど1本だけ動かして正しい式にすればクリアです。マッチをタップで選び、置きたい位置をタップして移動し、「決定」ボタンで判定します。間違えたらミス1回、ミス${band === 3 ? 4 : 3}回で失敗です（移動自体は決定前なら何度でもやり直せます）。問題は「1本の移動で正しくなる解がちょうど1通り」であることを全数チェックで検証済みです。`;
     if (type === "lights")
       return `グリッドのライトをタップすると、そのマスと上下左右が反転します。すべてのライトを消せばクリアです。制限時間は帯により90〜150秒で、盤面サイズが変わります（易しい帯：4×4／普通帯：5×5／難しい帯：6×6）。問題は全消灯状態から実際にタップして作るため、必ず解けます。`;
     if (type === "river")
-      return `農夫がボートで荷物を全て対岸へ運べばクリアです。乗せるものをタップで選び（ボートの定員内）、「渡る」ボタンで移動します。農夫のいない岸で危険な組み合わせ（狼＋ヤギ、ヤギ＋キャベツなど）を残すとミス1回、ミス3回で失敗です。題材はすべて解の存在と最短渡航回数をBFSで検証済みです。`;
+      return `農夫がボートで荷物を全て対岸へ運べばクリアです。乗せるものをタップで選び（ボートの定員内）、「渡る」ボタンで移動します。ボートに乗せた荷物は、渡る前ならボート内の荷物をタップすると降ろせます。農夫のいない岸で危険な組み合わせ（狼＋ヤギ、ヤギ＋キャベツなど）を残すとミス1回、ミス${band === 3 ? 4 : 3}回で失敗です。題材はすべて解の存在と最短渡航回数をBFSで検証済みです。`;
     if (type === "hitblow")
-      return `秘密の数字（各桁すべて異なり、先頭は0ではありません）を推理するゲームです。数字キーパッドで推測を入力するたびに、ヒット（数字と位置が一致）とブロー（数字のみ一致）の数が表示され、履歴が残ります。回数制限内に正解すればクリアです（易しい帯：3桁・8回まで／普通帯：4桁・8回まで／難しい帯：4桁・6回まで）。時間制限はありません。`;
+      return `秘密の数字（各桁すべて異なり、先頭は0ではありません）を推理するゲームです。数字キーパッドで推測を入力するたびに、ヒット（数字と位置が一致）とブロー（数字のみ一致）の数が表示され、履歴が残ります。入力中の数字は、上のマスをタップするとその桁を消して後ろを詰められます。回数制限内に正解すればクリアです（易しい帯：3桁・8回まで／普通帯：4桁・8回まで／難しい帯：4桁・7回まで）。時間制限はありません。`;
     if (type === "stroke")
       return `点と線でできた図形を、指を離さず、同じ線を2度なぞらずに、すべての線をなぞればクリアです。一度通った線は緑に変わります。行き詰まったら「1つ戻す」「やり直し」ボタンで再挑戦できます。制限時間は帯により90〜150秒。図形は一筆書き可能（奇数本の線が集まる点が0個）な形だけを生成しています。`;
-    return `詰将棋は9×9のフル盤面で、毎手王手の3手詰めを解けば合格です。間違えた手は無効になり、その場で指し直せます（何度間違えてもOK・失敗無制限）。問題は全300問から出題します。通常帯（易しい〜やや難しい108問）と難しい帯（192問）があり、本番ゲートでは通常帯と難しい帯が半々の確率で選ばれます。5回ごとの節目回では難しい帯だけから出題されます。`;
+    if (type === "numlink")
+      return `同じ数字のペアを指でなぞって線でつなぎ、すべてのマスを線で埋め尽くせばクリアです。線同士が交差・重複することはありません。制限時間は帯により90〜180秒（易しい帯：5×5・4ペア／普通帯：6×6・5ペア／難しい帯：7×7・6ペア）。数字のマスをタップすると、その色の線を引き直せます。問題は盤面全体をパスで敷き詰めた解から作るため、必ずクリアできます。`;
+    if (type === "slide")
+      return `空きマスに隣接する数字パネルをタップしてスライドさせ、左上から順に数字を並べ替えればクリアです。手数と残り時間を表示します。制限時間制です（易しい帯：3×3・シャッフル少なめ／普通帯：3×3・シャッフル多め／難しい帯：4×4）。問題は完成形から実際に動かして作るため、必ず解けます。`;
+    if (type === "hanoi")
+      return `棒をタップして一番上の円盤を持ち上げ、移したい棒をタップして置きます。1回に動かせるのは1枚だけで、小さい円盤の上に大きい円盤は置けません。すべての円盤を別の棒へ移し終えればクリアです。手数と最小手数（2のn乗−1）を表示します。制限時間は帯により60〜180秒（易しい帯：円盤3枚／普通帯：4枚／難しい帯：5枚）。`;
+    return `詰将棋は9×9のフル盤面で、毎手王手の3手詰めを解けば合格です。間違えた手は無効になり、その場で指し直せますが、間違えた手1回でミス1回、ミス3回で失敗です（「最初からやり直す」でもミス回数はリセットされません）。問題は全300問から等確率で出題します。5回ごとの節目回では難しい帯（192問）だけから出題されます。`;
   }
   function practiceLevelsFor(type) {
     return type === "rhythm" ? [1, 2, 3, 4, 5, 6, 7, 8] : [1, 2, 3];
@@ -20047,7 +21248,7 @@ React keys must be passed directly to JSX without using spread:
       return `テンポ ♩=${rhythmBpm(level)}／打点 ${lo}〜${hi}か所`;
     }
     if (type === "rush")
-      return ["最短7〜13手／制限時間90秒", "最短17〜26手／制限時間105秒", "最短30手以上／制限時間120秒"][level - 1] ?? "";
+      return ["最短7〜13手／制限時間90秒", "最短17〜26手／制限時間105秒", "最短30手以上／制限時間180秒"][level - 1] ?? "";
     if (type === "match")
       return ["1桁同士の式", "答えや項が2桁になる式", "2〜3桁の式"][level - 1] ?? "";
     if (type === "lights")
@@ -20055,9 +21256,15 @@ React keys must be passed directly to JSX without using spread:
     if (type === "river")
       return ["狼・ヤギ・キャベツ（定員1）／最短7回", "品数追加：花束・種袋つき（定員1）／最短11回", "7品・危険ペア5組（定員2）／最短9回"][level - 1] ?? "";
     if (type === "hitblow")
-      return ["3桁・8回まで", "4桁・8回まで", "4桁・6回まで"][level - 1] ?? "";
+      return ["3桁・8回まで", "4桁・8回まで", "4桁・7回まで"][level - 1] ?? "";
     if (type === "stroke")
       return ["点6・線9本／制限時間90秒", "点7・線13本前後／制限時間120秒", "点9・線19本前後／制限時間150秒"][level - 1] ?? "";
+    if (type === "numlink")
+      return ["5×5・4ペア／制限時間90秒", "6×6・5ペア／制限時間120秒", "7×7・6ペア／制限時間180秒"][level - 1] ?? "";
+    if (type === "slide")
+      return ["3×3・シャッフル少なめ／制限時間120秒", "3×3・シャッフル多め／制限時間120秒", "4×4／制限時間180秒"][level - 1] ?? "";
+    if (type === "hanoi")
+      return ["円盤3枚（最短7手）／制限時間60秒", "円盤4枚（最短15手）／制限時間100秒", "円盤5枚（最短31手）／制限時間180秒"][level - 1] ?? "";
     if (type === "shogi" && level === 2)
       return "難しい帯（192問）から出題します";
     if (type === "shogi" && level === 3)
@@ -20102,6 +21309,8 @@ React keys must be passed directly to JSX without using spread:
     const [screen, setScreen] = import_react4.useState("home");
     const [flow, setFlow] = import_react4.useState(null);
     const [banner, setBanner] = import_react4.useState(null);
+    const [failAnswerSeq, setFailAnswerSeq] = import_react4.useState(0);
+    const [showFailAnswer, setShowFailAnswer] = import_react4.useState(false);
     const [nowMs, setNowMs] = import_react4.useState(() => Date.now());
     const gateFiredForRef = import_react4.useRef(null);
     const cooldownDoneForRef = import_react4.useRef(null);
@@ -20141,10 +21350,12 @@ React keys must be passed directly to JSX without using spread:
       const openedToday = data?.todayPasses ?? 0;
       const upcomingCount = openedToday + 1;
       const isMilestone = gate !== "practice" && upcomingCount % 5 === 0;
-      const band = gate === "practice" ? level : isMilestone ? BAND_MAX[type] : type === "shogi" ? drawBandWithWeights([1, 2], [1, 1]) : type === "rhythm" ? drawWeightedBand(BAND_MAX[type]) : 1 + Math.floor(Math.random() * BAND_MAX[type]);
+      const band = gate === "practice" ? level : isMilestone ? BAND_MAX[type] : 1 + Math.floor(Math.random() * BAND_MAX[type]);
       setFlow({ gate, type, level, band, phase: gate === "practice" ? "ready" : isMilestone ? "notice" : "playing", result: null, openedToday, upcomingCount, milestone: isMilestone });
       setScreen("challenge");
       setBanner(null);
+      setFailAnswerSeq(0);
+      setShowFailAnswer(false);
     };
     const ext = data?.session ?? { startedAt: null, limitMinutes: null, cooldownUntil: null };
     const sessionTotal = ext.limitMinutes ? ext.limitMinutes * 60 : 0;
@@ -20424,18 +21635,21 @@ React keys must be passed directly to JSX without using spread:
                     }, undefined, false, undefined, this)
                   ]
                 }, undefined, true, undefined, this),
-                flow.phase === "playing" && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                (flow.phase === "playing" || flow.phase === "done" && flow.result && !flow.result.passed) && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
                   className: "mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4",
+                  style: flow.phase === "done" && !showFailAnswer ? { display: "none" } : undefined,
                   children: /* @__PURE__ */ jsx_dev_runtime2.jsxDEV(ChallengeGame, {
                     type: flow.type,
                     level: flow.level,
                     band: flow.band,
                     onFinish: onChallengeFinish,
                     gate: flow.gate,
-                    milestoneMax: flow.milestone
+                    milestoneMax: flow.milestone,
+                    failRevealSeq: failAnswerSeq,
+                    onAnswerClose: () => setShowFailAnswer(false)
                   }, `${flow.type}-${flow.level}-${flow.band}`, false, undefined, this)
                 }, undefined, false, undefined, this),
-                flow.phase === "done" && flow.result && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                flow.phase === "done" && flow.result && !showFailAnswer && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
                   className: "mt-5 text-center",
                   children: [
                     /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
@@ -20451,6 +21665,16 @@ React keys must be passed directly to JSX without using spread:
                         flow.gate === "extension" && (flow.result.passed ? `+${passPoints("extension", flow.level)}pt ゲット。${settings.sessionMinutes}分延長します。次回はもっと難しくなります。` : `延長ならず。${settings.cooldownMinutes}分のクールダウンに入ります。`)
                       ]
                     }, undefined, true, undefined, this),
+                    !flow.result.passed && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
+                      type: "button",
+                      onClick: () => {
+                        setFailAnswerSeq((s) => s + 1);
+                        setShowFailAnswer(true);
+                      },
+                      className: "font-display mt-5 w-full rounded-full py-4 text-lg font-extrabold",
+                      style: { border: "2px solid var(--border)", background: "var(--surface)", color: "var(--dim)" },
+                      children: "答えを見る"
+                    }, undefined, false, undefined, this),
                     flow.result.passed && flow.gate !== "practice" ? /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
                       children: [
                         /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("a", {
@@ -20776,7 +22000,7 @@ React keys must be passed directly to JSX without using spread:
                 /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("br", {}, undefined, false, undefined, this),
                 "1セッション ",
                 data.settings.sessionMinutes,
-                "分 ／ チャレンジは全8種類（リズム／詰将棋／ラッシュアワー／マッチ棒／ライツアウト／川渡り／数字当て／一筆書き）からランダムに出題されます。5回ごとの節目回は最高レベル固定です"
+                "分 ／ チャレンジは全11種類（リズム／詰将棋／ラッシュアワー／マッチ棒／ライツアウト／川渡り／数字当て／一筆書き／ナンバーリンク／スライドパズル／ハノイの塔）からランダムに出題されます。5回ごとの節目回は最高レベル固定です"
               ]
             }, undefined, true, undefined, this)
           ]
@@ -20907,6 +22131,18 @@ React keys must be passed directly to JSX without using spread:
                         /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
                           value: "stroke",
                           children: "一筆書き固定"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
+                          value: "numlink",
+                          children: "ナンバーリンク固定"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
+                          value: "slide",
+                          children: "スライドパズル固定"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
+                          value: "hanoi",
+                          children: "ハノイの塔固定"
                         }, undefined, false, undefined, this)
                       ]
                     }, undefined, true, undefined, this)
