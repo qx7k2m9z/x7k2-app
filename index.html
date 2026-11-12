@@ -17392,7 +17392,13 @@ React keys must be passed directly to JSX without using spread:
   // src/content.ts
   var CHALLENGE_LABEL = {
     rhythm: "リズム",
-    shogi: "詰将棋"
+    shogi: "詰将棋",
+    rush: "ラッシュアワー",
+    match: "マッチ棒",
+    lights: "ライツアウト",
+    river: "川渡り",
+    hitblow: "数字当て",
+    stroke: "一筆書き"
   };
   var recentIdxMap = new Map;
   var RECENT_KEY = "gatekeeper-recent-v1";
@@ -17429,7 +17435,13 @@ React keys must be passed directly to JSX without using spread:
   }
   var BAND_MAX = {
     rhythm: 8,
-    shogi: 2
+    shogi: 2,
+    rush: 3,
+    match: 3,
+    lights: 3,
+    river: 3,
+    hitblow: 3,
+    stroke: 3
   };
   function drawWeightedBand(maxBand) {
     const total = maxBand * (maxBand + 1) / 2;
@@ -19105,6 +19117,840 @@ React keys must be passed directly to JSX without using spread:
       ]
     }, undefined, true, undefined, this);
   }
+
+  var RUSH_POOL = {"1":[{"v":[[0,2,2,1],[2,0,2,0],[4,0,2,1],[3,4,2,0],[4,5,2,1],[1,0,2,0],[4,4,2,1],[3,1,2,1],[3,2,2,0],[1,3,3,0]],"m":7},{"v":[[0,2,2,1],[2,3,2,0],[1,5,3,1],[4,3,2,0],[2,1,2,0],[0,3,2,0],[3,3,2,0],[5,1,3,0],[3,1,2,1],[2,0,3,1]],"m":8},{"v":[[0,2,2,1],[2,3,3,0],[1,0,3,1],[4,3,2,0],[3,1,2,1],[4,5,2,1],[0,3,3,0],[5,2,3,0],[3,4,2,0],[0,1,2,1]],"m":7},{"v":[[0,2,2,1],[0,0,3,1],[0,4,3,1],[2,3,2,1],[3,5,2,1],[3,0,3,0],[4,4,2,1],[4,2,2,0],[0,5,2,1],[0,1,3,1]],"m":11},{"v":[[0,2,2,1],[0,1,2,1],[0,0,2,1],[2,4,3,1],[1,3,3,0],[2,2,2,0],[5,1,3,0],[3,1,2,1],[2,5,3,1],[0,4,2,0]],"m":8},{"v":[[0,2,2,1],[2,1,3,1],[4,5,2,1],[0,3,2,1],[3,2,2,0],[5,0,2,0],[1,4,2,1],[0,5,2,1],[3,4,3,1],[0,0,3,1]],"m":8},{"v":[[0,2,2,1],[4,0,2,1],[3,2,3,0],[0,3,3,0],[0,0,2,0],[5,1,2,0],[1,1,2,1],[2,3,3,0],[4,3,3,0],[3,1,2,1],[1,0,2,1],[1,4,2,0],[5,3,3,0]],"m":7},{"v":[[0,2,2,1],[5,1,2,0],[0,3,3,0],[0,0,3,1],[4,4,2,0],[2,5,2,1],[3,1,2,1],[4,0,2,1],[2,2,3,0],[1,3,2,0]],"m":9},{"v":[[0,2,2,1],[5,1,2,0],[0,5,2,1],[3,4,2,0],[0,3,3,1],[0,0,2,1],[0,4,2,1],[4,1,2,0],[3,0,2,0],[5,4,2,0],[2,1,2,0]],"m":7},{"v":[[0,2,2,1],[1,0,3,1],[3,2,3,0],[0,4,3,1],[5,1,2,0],[1,5,3,1],[1,1,3,1],[4,5,2,1],[1,3,2,1],[0,0,2,0]],"m":7},{"v":[[0,2,2,1],[4,2,2,0],[5,1,2,0],[5,4,2,0],[3,1,2,1],[0,1,3,1],[2,0,3,1],[1,3,2,0],[1,5,3,1],[3,2,2,0]],"m":7},{"v":[[0,2,2,1],[4,2,2,0],[2,3,2,1],[2,0,2,0],[0,0,2,0],[4,0,2,1],[3,4,2,1],[0,5,2,1],[3,1,3,1],[5,3,2,0],[2,5,2,1],[1,4,2,1],[1,0,2,0]],"m":7},{"v":[[0,2,2,1],[2,1,3,1],[5,0,2,0],[2,2,2,0],[2,0,3,1],[4,2,3,0],[1,3,2,0],[3,3,3,0],[4,5,2,1],[5,2,3,0]],"m":12},{"v":[[0,2,2,1],[2,4,3,1],[4,0,2,0],[0,3,3,1],[4,3,2,1],[0,0,2,1],[3,1,2,0],[0,4,2,1],[2,1,2,0],[1,5,2,1],[5,1,2,0]],"m":7},{"v":[[0,2,2,1],[2,3,3,0],[4,2,2,0],[3,2,3,0],[0,0,2,1],[1,4,2,0],[5,3,2,0],[3,5,2,1],[1,1,2,1],[2,0,2,1]],"m":7},{"v":[[0,2,2,1],[2,0,2,0],[2,4,2,0],[0,0,2,0],[3,2,2,0],[4,2,3,0],[5,1,2,0],[1,0,2,0],[4,5,2,1],[0,3,3,0]],"m":10},{"v":[[0,2,2,1],[2,4,3,1],[1,1,2,1],[0,4,2,0],[3,0,3,1],[5,1,2,0],[5,3,3,0],[4,2,2,0],[1,3,3,0],[3,1,2,1]],"m":11},{"v":[[0,2,2,1],[4,2,3,0],[0,1,3,1],[4,0,2,1],[0,5,2,1],[3,1,2,0],[0,0,3,1],[2,3,2,0],[5,2,3,0],[0,3,2,0]],"m":7},{"v":[[0,2,2,1],[4,4,2,1],[0,1,3,1],[0,3,2,1],[3,0,2,0],[4,2,2,0],[0,5,3,1],[3,3,3,0],[1,4,2,1],[2,2,2,0]],"m":8},{"v":[[0,2,2,1],[0,4,2,1],[3,5,2,1],[0,0,3,1],[4,0,2,1],[4,3,2,1],[5,1,2,0],[2,2,3,0],[2,1,3,1],[0,1,2,1]],"m":7},{"v":[[0,2,2,1],[2,2,2,0],[4,0,2,1],[2,4,2,0],[1,4,2,0],[3,2,3,0],[5,3,2,0],[2,0,2,1],[3,1,2,1],[4,3,2,0]],"m":9},{"v":[[0,2,2,1],[1,5,3,1],[1,1,2,1],[4,2,3,0],[3,2,2,0],[2,4,2,1],[1,3,2,0],[0,0,2,0],[4,1,2,1],[5,4,2,0]],"m":7},{"v":[[0,2,2,1],[0,3,2,0],[4,2,2,0],[2,0,3,1],[3,2,3,0],[2,5,3,1],[1,3,2,0],[5,0,3,0],[2,1,2,0],[2,3,2,0]],"m":13},{"v":[[0,2,2,1],[2,3,2,1],[1,5,2,1],[2,4,2,1],[3,0,3,1],[5,2,2,0],[0,3,3,0],[4,1,2,1],[0,0,2,1],[2,1,2,0],[5,4,2,0]],"m":10},{"v":[[0,2,2,1],[3,2,3,0],[4,4,2,0],[0,4,2,1],[5,2,3,0],[1,5,3,1],[2,0,3,1],[3,1,2,1],[5,0,2,0],[2,3,2,0]],"m":7},{"v":[[0,2,2,1],[0,4,2,0],[3,3,2,1],[4,0,2,0],[5,2,2,0],[2,3,3,0],[3,1,2,0],[0,0,3,1],[0,1,3,1],[4,4,2,0],[3,4,2,0],[5,4,2,0]],"m":7},{"v":[[0,2,2,1],[2,1,2,1],[2,2,2,0],[3,5,2,1],[0,4,2,1],[1,0,2,0],[5,3,2,0],[2,4,2,0],[0,3,2,1],[3,0,3,1]],"m":7},{"v":[[0,2,2,1],[4,1,2,1],[4,4,2,0],[0,3,3,1],[2,1,2,1],[5,2,3,0],[0,0,3,1],[3,2,2,0],[0,5,3,1],[2,4,2,1]],"m":7},{"v":[[0,2,2,1],[4,3,3,0],[5,1,3,0],[0,0,2,0],[1,4,2,0],[3,2,3,0],[2,1,3,1],[1,0,3,1],[4,0,2,1],[2,3,2,0]],"m":7},{"v":[[0,2,2,1],[2,4,2,1],[1,3,3,1],[5,3,2,0],[0,4,2,0],[4,3,3,0],[3,0,3,0],[1,1,2,1],[0,0,2,1],[2,5,2,1]],"m":10}],"2":[{"v":[[0,2,2,1],[0,0,2,0],[4,1,2,0],[1,0,2,1],[2,2,3,0],[1,5,2,1],[0,4,2,1],[3,3,2,1],[0,3,2,1],[5,2,2,0],[3,0,2,0],[4,0,2,1],[3,5,2,1]],"m":17},{"v":[[0,2,2,1],[0,5,2,1],[4,0,3,0],[0,4,2,1],[0,3,2,1],[2,1,2,0],[2,0,2,1],[4,4,2,1],[5,0,2,0],[4,5,2,1],[3,4,2,0],[0,1,2,1],[5,2,2,0]],"m":19},{"v":[[0,2,2,1],[1,0,2,0],[2,4,2,1],[3,3,2,1],[0,0,2,0],[1,3,2,0],[5,1,3,0],[0,3,2,0],[2,5,2,1],[3,1,2,1],[3,0,3,1],[2,0,3,0],[4,4,2,0]],"m":24},{"v":[[0,2,2,1],[1,5,2,1],[4,2,3,0],[1,4,2,1],[3,1,3,1],[5,2,2,0],[2,1,2,0],[0,3,2,1],[2,0,2,1],[5,4,2,0],[3,5,2,1],[1,0,2,0],[0,4,2,0]],"m":19},{"v":[[0,2,2,1],[1,4,3,1],[5,2,2,0],[3,1,3,1],[4,3,2,0],[2,0,3,1],[3,2,2,0],[0,0,2,0],[1,5,2,1],[0,4,2,0],[5,4,2,0],[2,2,2,0],[0,3,2,1]],"m":22},{"v":[[0,2,2,1],[2,4,2,0],[4,3,2,1],[5,1,2,0],[3,0,3,1],[4,1,2,0],[3,1,2,0],[1,1,2,1],[0,3,3,0],[1,3,2,0],[3,5,3,1],[2,2,2,0],[1,0,2,1]],"m":18},{"v":[[0,2,2,1],[1,4,2,1],[4,1,2,0],[2,0,2,0],[3,2,2,0],[4,3,2,0],[5,1,3,0],[0,5,3,1],[3,0,3,1],[3,4,2,0],[4,5,2,1]],"m":18},{"v":[[0,2,2,1],[4,1,2,0],[3,3,2,0],[4,3,3,0],[0,3,2,1],[0,0,2,0],[2,3,2,0],[5,3,3,0],[2,0,2,1],[3,1,2,0],[2,1,2,0]],"m":20},{"v":[[0,2,2,1],[1,4,2,1],[5,2,2,0],[4,5,2,1],[2,1,2,0],[4,3,2,0],[4,0,2,1],[2,0,2,1],[3,2,3,0],[4,1,2,0],[1,3,2,1],[1,5,3,1],[1,0,2,0]],"m":17},{"v":[[0,2,2,1],[1,4,2,0],[4,2,3,0],[1,1,3,1],[0,4,2,0],[3,2,3,0],[1,0,2,1],[5,0,3,0],[3,5,2,1],[0,0,2,0],[2,4,2,0],[2,2,2,0]],"m":19},{"v":[[0,2,2,1],[4,4,2,0],[1,3,3,0],[4,2,2,0],[0,3,3,0],[3,2,3,0],[2,5,2,1],[1,0,2,0],[2,1,2,0],[2,0,3,1],[5,2,2,0],[5,4,2,0],[0,0,2,0]],"m":17},{"v":[[0,2,2,1],[5,1,2,0],[4,2,2,0],[3,4,2,0],[3,2,2,0],[1,0,3,1],[4,4,2,0],[0,4,2,1],[5,3,2,0],[2,2,3,0],[2,1,2,1],[0,5,3,1]],"m":17},{"v":[[0,2,2,1],[2,2,2,0],[3,3,2,1],[1,3,2,0],[5,1,2,0],[3,0,3,0],[0,0,2,0],[1,0,2,1],[4,1,2,0],[1,1,2,1],[3,5,3,1],[5,3,2,0],[4,0,2,1]],"m":19},{"v":[[0,2,2,1],[4,1,3,0],[1,1,3,1],[3,2,2,0],[2,5,2,1],[5,0,3,0],[0,0,2,0],[2,3,2,0],[0,3,2,0],[2,0,3,1],[3,4,2,1],[0,5,2,1]],"m":18},{"v":[[0,2,2,1],[1,4,2,1],[1,0,3,1],[4,2,2,0],[0,5,2,1],[4,4,2,1],[2,2,2,0],[2,1,2,1],[4,5,2,1],[5,1,3,0],[0,3,2,0],[0,0,2,0]],"m":17},{"v":[[0,2,2,1],[3,1,2,0],[0,1,2,1],[2,2,3,0],[3,0,3,1],[5,2,2,0],[4,1,2,1],[3,5,2,1],[0,0,2,1],[4,2,3,0],[2,0,2,0],[5,4,2,0],[0,4,2,0]],"m":17},{"v":[[0,2,2,1],[2,1,2,0],[3,0,2,1],[5,4,2,0],[2,4,2,1],[4,4,2,0],[4,2,2,0],[3,2,2,0],[1,0,2,1],[0,3,3,1],[1,5,2,1],[5,2,2,0],[0,0,2,0]],"m":20},{"v":[[0,2,2,1],[5,4,2,0],[4,1,2,1],[1,0,3,1],[0,5,2,1],[3,4,2,1],[2,3,2,1],[2,5,3,1],[5,2,2,0],[0,4,2,1],[0,0,2,0],[3,1,2,0],[2,1,2,0]],"m":18},{"v":[[0,2,2,1],[2,5,2,1],[5,4,2,0],[1,0,2,1],[3,2,3,0],[1,4,2,1],[4,1,2,1],[4,0,2,1],[4,3,2,0],[0,1,2,1],[0,5,2,1],[2,1,3,0],[0,3,2,0]],"m":26},{"v":[[0,2,2,1],[0,0,2,0],[1,3,2,1],[4,1,3,0],[5,0,3,0],[3,5,2,1],[3,2,2,0],[2,1,2,0],[2,0,2,1],[2,4,2,1],[1,4,2,0],[4,4,2,1]],"m":22},{"v":[[0,2,2,1],[2,2,2,0],[5,4,2,0],[3,3,3,1],[2,4,2,1],[4,1,2,1],[3,0,3,0],[3,5,2,1],[1,0,2,1],[0,0,2,0],[0,3,2,0]],"m":18},{"v":[[0,2,2,1],[4,2,2,0],[2,1,2,0],[3,5,3,1],[5,2,3,0],[0,4,2,0],[1,4,2,1],[2,0,2,1],[4,1,2,1],[3,4,2,1],[0,3,3,1],[0,1,2,1],[3,2,2,0]],"m":17},{"v":[[0,2,2,1],[5,1,3,0],[3,1,3,0],[4,2,3,0],[1,0,2,1],[0,4,2,0],[4,0,2,0],[1,4,3,1],[0,1,2,1],[1,5,3,1],[2,2,2,0],[0,3,2,1]],"m":17},{"v":[[0,2,2,1],[2,0,2,1],[3,2,2,0],[5,3,3,0],[3,4,2,1],[0,3,3,1],[0,4,2,0],[2,1,2,0],[4,0,3,0],[1,5,3,1],[1,4,2,1]],"m":17},{"v":[[0,2,2,1],[4,4,2,0],[5,1,3,0],[0,1,2,1],[4,0,2,0],[0,0,2,1],[2,4,2,1],[2,0,3,0],[1,3,2,1],[3,0,3,0],[2,5,2,1]],"m":17},{"v":[[0,2,2,1],[4,0,2,0],[1,1,2,1],[0,4,3,1],[3,4,2,0],[2,0,2,1],[2,2,2,0],[5,2,3,0],[0,5,3,1],[3,3,2,1],[4,5,2,1],[0,0,2,1],[3,1,2,0]],"m":18},{"v":[[0,2,2,1],[4,5,2,1],[3,3,3,0],[5,1,3,0],[4,0,2,1],[1,4,2,0],[2,1,2,0],[0,3,3,0],[2,4,2,0],[3,1,2,0],[0,1,2,1],[4,1,2,0]],"m":17},{"v":[[0,2,2,1],[3,3,2,1],[2,1,2,1],[4,1,2,0],[0,0,3,1],[2,4,2,0],[5,1,3,0],[4,5,2,1],[1,4,2,0],[0,3,2,1],[4,4,2,1],[0,4,2,0],[3,4,2,0]],"m":18},{"v":[[0,2,2,1],[4,2,2,0],[1,0,2,1],[1,1,2,1],[0,0,2,0],[3,0,3,0],[2,4,3,1],[2,3,2,1],[4,5,2,1],[5,0,3,0],[0,3,2,0]],"m":18},{"v":[[0,2,2,1],[4,1,2,0],[3,2,2,0],[2,0,3,1],[5,3,2,0],[2,4,2,1],[0,4,2,0],[1,4,2,0],[2,1,2,0],[5,1,2,0],[3,5,3,1],[0,3,3,1]],"m":18}],"3":[{"v":[[0,2,2,1],[2,2,3,0],[3,3,2,0],[3,0,2,0],[4,0,2,1],[4,4,2,1],[1,0,2,1],[1,1,2,1],[2,5,3,1],[5,2,2,0],[4,1,2,0],[0,0,2,0]],"m":30},{"v":[[0,2,2,1],[2,4,3,1],[3,0,2,0],[4,0,2,1],[1,4,2,0],[0,3,2,1],[4,1,3,0],[2,5,2,1],[5,4,2,0],[1,1,2,1],[0,0,2,0],[2,2,2,0]],"m":33},{"v":[[0,2,2,1],[2,1,3,0],[5,1,2,0],[4,3,2,0],[3,0,2,0],[0,3,2,0],[4,0,2,1],[0,1,2,1],[3,5,3,1],[2,4,2,1],[3,2,2,0],[0,0,2,1]],"m":45},{"v":[[0,2,2,1],[3,0,2,1],[2,1,3,0],[0,0,2,0],[3,4,3,1],[2,5,2,1],[3,2,2,0],[4,2,2,0],[0,4,2,0],[4,5,2,1],[5,2,2,0],[1,0,2,0],[3,1,2,1]],"m":32},{"v":[[0,2,2,1],[0,0,2,0],[2,1,2,0],[5,0,3,0],[0,3,3,1],[4,1,2,0],[3,4,3,1],[1,0,2,1],[3,5,2,1],[0,5,3,1],[3,0,2,1],[3,2,2,0]],"m":30},{"v":[[0,2,2,1],[0,0,2,1],[2,4,2,1],[1,4,2,0],[0,1,2,1],[4,4,2,0],[3,1,3,0],[2,0,3,0],[3,0,2,1],[2,5,2,1],[5,4,2,0],[0,3,3,0],[4,3,2,1]],"m":30},{"v":[[0,2,2,1],[1,5,3,1],[2,2,2,0],[3,3,2,0],[5,0,3,0],[4,4,2,1],[0,4,2,0],[1,3,2,0],[4,2,2,0],[0,0,2,1],[1,1,3,1],[3,0,2,1]],"m":32},{"v":[[0,2,2,1],[0,3,2,1],[3,2,3,0],[0,4,2,0],[1,5,3,1],[5,0,2,0],[4,4,2,0],[0,1,2,1],[5,2,3,0],[0,0,3,1],[2,1,2,0],[1,4,2,1],[3,0,2,1]],"m":43},{"v":[[0,2,2,1],[3,2,2,0],[5,4,2,0],[0,0,2,0],[3,5,2,1],[2,4,2,1],[5,2,2,0],[2,2,2,0],[0,3,2,1],[1,1,2,1],[0,4,2,0],[3,0,2,0],[4,1,2,0]],"m":39},{"v":[[0,2,2,1],[4,0,2,1],[2,1,3,1],[4,2,2,0],[0,3,2,0],[0,1,2,1],[1,0,3,1],[3,4,2,1],[2,4,2,0],[5,1,2,0],[3,5,2,1],[2,3,2,1],[5,3,2,0]],"m":32},{"v":[[0,2,2,1],[3,4,2,1],[3,1,2,0],[0,3,2,0],[4,2,2,0],[1,4,2,0],[3,0,2,1],[5,0,3,0],[1,0,2,1],[2,2,3,0],[4,5,2,1],[0,1,3,1],[2,5,2,1]],"m":41},{"v":[[0,2,2,1],[4,4,2,1],[5,2,2,0],[2,3,3,0],[3,1,2,0],[2,0,3,1],[0,5,2,1],[0,3,2,0],[3,3,2,1],[1,1,2,1],[3,5,2,1],[5,0,2,0],[0,0,2,1]],"m":31},{"v":[[0,2,2,1],[0,5,2,1],[3,1,2,0],[0,3,2,0],[3,3,2,1],[3,0,3,1],[2,5,2,1],[5,4,2,0],[2,1,3,0],[5,1,2,0],[1,4,2,1],[1,0,2,0],[4,4,2,0]],"m":36},{"v":[[0,2,2,1],[2,0,3,0],[0,4,2,0],[5,4,2,0],[1,5,3,1],[3,0,3,1],[0,0,2,0],[0,3,2,1],[3,1,2,0],[4,4,2,0],[5,1,2,0],[1,4,3,1],[4,3,2,1]],"m":30},{"v":[[0,2,2,1],[4,0,2,1],[1,5,3,1],[2,3,2,0],[3,1,3,1],[0,3,2,1],[1,0,2,1],[0,0,2,0],[5,3,2,0],[4,2,2,0],[3,2,3,0],[0,4,2,0]],"m":34},{"v":[[0,2,2,1],[3,1,2,0],[2,0,3,1],[3,3,2,1],[1,3,2,0],[2,1,2,0],[5,3,2,0],[4,1,2,0],[0,3,2,0],[3,5,2,1],[1,5,2,1],[5,0,2,0],[2,3,2,0]],"m":30},{"v":[[0,2,2,1],[2,4,3,1],[4,2,2,0],[3,2,2,0],[3,1,2,1],[4,5,2,1],[5,2,2,0],[2,1,3,0],[3,0,3,1],[1,4,2,0],[0,3,2,1],[0,4,2,0],[2,5,2,1]],"m":30},{"v":[[0,2,2,1],[0,3,3,0],[3,2,2,0],[5,3,3,0],[3,1,3,1],[1,3,2,1],[0,0,2,0],[3,4,2,1],[1,4,2,0],[4,2,2,0],[3,0,3,1],[2,5,2,1]],"m":30},{"v":[[0,2,2,1],[3,2,2,0],[2,2,2,0],[4,4,2,1],[3,1,2,1],[5,0,3,0],[0,0,2,0],[4,3,2,1],[2,4,2,1],[4,5,2,1],[1,5,3,1],[1,3,2,0],[1,0,2,1]],"m":32},{"v":[[0,2,2,1],[0,5,2,1],[2,2,2,0],[2,5,2,1],[3,1,3,0],[4,4,2,0],[4,0,2,0],[5,1,2,0],[4,3,2,1],[1,1,2,1],[0,0,2,0],[1,0,3,1],[5,4,2,0]],"m":31},{"v":[[0,2,2,1],[3,1,2,0],[5,2,3,0],[3,3,2,1],[1,3,2,0],[0,5,3,1],[1,0,2,0],[2,2,3,0],[2,0,3,1],[4,4,2,0],[5,0,2,0],[4,1,2,0],[0,0,2,0]],"m":31},{"v":[[0,2,2,1],[4,2,2,0],[0,3,2,0],[1,5,3,1],[5,2,2,0],[5,4,2,0],[3,2,3,0],[3,1,3,1],[2,1,2,0],[4,4,2,0],[2,0,2,1],[4,0,2,1],[1,3,2,1]],"m":33},{"v":[[0,2,2,1],[1,1,3,1],[4,4,2,1],[2,4,2,0],[4,1,3,0],[5,0,2,0],[1,4,2,0],[0,0,2,1],[0,3,2,0],[2,3,2,1],[3,5,3,1],[2,0,2,1],[5,2,2,0]],"m":36},{"v":[[0,2,2,1],[4,0,2,0],[1,4,2,0],[0,0,2,0],[2,5,2,1],[5,3,2,0],[3,1,3,0],[2,1,2,0],[4,5,2,1],[0,4,2,0],[1,0,2,1],[5,1,2,0],[2,4,2,1]],"m":31},{"v":[[0,2,2,1],[4,2,2,0],[3,0,3,0],[0,5,2,1],[2,0,2,0],[5,4,2,0],[5,1,2,0],[4,0,2,1],[2,4,2,1],[0,3,3,1],[4,4,2,0],[0,0,2,0],[2,5,2,1]],"m":30},{"v":[[0,2,2,1],[4,2,2,0],[3,4,3,1],[2,3,2,1],[5,1,3,0],[1,4,2,0],[4,5,2,1],[3,0,2,0],[2,5,2,1],[2,0,2,0],[0,3,2,1],[4,0,2,1],[0,4,2,0]],"m":30},{"v":[[0,2,2,1],[1,4,2,1],[5,4,2,0],[3,1,3,0],[0,0,2,0],[0,3,3,1],[2,1,2,0],[2,0,2,1],[1,0,2,0],[2,5,2,1],[0,5,2,1],[4,1,2,0],[3,4,2,1]],"m":30},{"v":[[0,2,2,1],[2,2,3,0],[3,1,3,0],[4,2,2,0],[4,1,2,1],[3,5,2,1],[0,4,2,0],[1,5,2,1],[5,4,2,0],[5,2,2,0],[1,0,2,1],[3,0,3,1],[3,4,2,1]],"m":30},{"v":[[0,2,2,1],[2,4,2,0],[5,0,2,0],[1,0,2,1],[0,0,2,0],[0,5,2,1],[5,2,2,0],[3,5,2,1],[3,0,3,0],[4,4,2,1],[2,2,2,0],[1,3,2,0],[4,1,2,0]],"m":33},{"v":[[0,2,2,1],[5,4,2,0],[3,4,2,1],[3,1,2,0],[2,3,2,1],[1,0,3,1],[1,4,2,1],[3,5,2,1],[2,1,2,0],[5,0,2,0],[4,2,2,0],[0,1,2,1],[0,3,2,0]],"m":40},{"v":[[0,2,2,1],[0,0,2,0],[4,0,2,0],[5,0,2,0],[1,0,2,0],[1,4,2,1],[2,0,2,1],[5,2,3,0],[4,3,2,0],[0,3,3,1],[3,3,2,0],[1,5,2,1],[2,1,2,0]],"m":37},{"v":[[0,2,2,1],[4,4,2,0],[4,0,2,1],[3,1,2,0],[1,4,2,1],[5,4,2,0],[2,3,2,1],[2,0,3,0],[0,5,2,1],[0,1,2,1],[4,1,2,1],[0,3,2,0],[0,0,2,1]],"m":30},{"v":[[0,2,2,1],[2,2,2,0],[3,5,3,1],[2,0,2,1],[4,0,3,0],[2,1,2,1],[3,3,2,1],[5,2,3,0],[2,4,2,0],[1,3,2,0],[0,0,2,1]],"m":32},{"v":[[0,2,2,1],[4,2,3,0],[2,0,2,0],[3,0,3,0],[0,4,2,0],[0,3,2,1],[5,3,3,0],[2,3,2,0],[5,1,2,0],[2,5,3,1],[0,0,2,1],[0,1,2,1],[4,0,2,1]],"m":30},{"v":[[0,2,2,1],[3,5,3,1],[1,3,3,1],[2,0,3,1],[0,0,2,1],[3,4,2,1],[0,4,2,0],[4,2,2,0],[0,1,3,1],[5,0,2,0],[2,4,2,0]],"m":30},{"v":[[0,2,2,1],[2,5,2,1],[2,0,2,0],[1,0,2,0],[4,1,2,0],[2,2,3,0],[3,0,2,0],[3,4,2,1],[0,0,2,0],[4,0,2,1],[3,2,2,0],[5,2,2,0],[4,5,2,1]],"m":30},{"v":[[0,2,2,1],[4,4,2,1],[3,1,2,0],[1,5,2,1],[2,0,2,1],[2,1,2,0],[2,3,2,0],[4,5,2,1],[5,0,2,0],[4,0,3,0],[3,3,2,0],[1,0,2,0],[0,3,2,0]],"m":30},{"v":[[0,2,2,1],[1,5,3,1],[0,4,2,0],[0,3,2,1],[3,1,2,1],[3,2,3,0],[5,4,2,0],[4,0,2,1],[2,1,2,0],[2,0,2,1],[0,0,2,0],[5,1,2,0],[4,2,2,0]],"m":35}]};
+  // ===== New challenges: rush / match / lights / river / hitblow / stroke =====
+  var ce = import_react3.default.createElement;
+  function ngMmss(s) {
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+  function useNgCountdown(totalSec, running, onTimeout) {
+    const [left, setLeft] = import_react3.useState(totalSec);
+    const cbRef = import_react3.useRef(onTimeout);
+    cbRef.current = onTimeout;
+    const doneRef2 = import_react3.useRef(false);
+    import_react3.useEffect(() => {
+      if (!running)
+        return;
+      const t0 = Date.now();
+      const iv = window.setInterval(() => {
+        const rem = Math.max(0, totalSec - Math.floor((Date.now() - t0) / 1000));
+        setLeft(rem);
+        if (rem <= 0 && !doneRef2.current) {
+          doneRef2.current = true;
+          window.clearInterval(iv);
+          cbRef.current();
+        }
+      }, 250);
+      return () => window.clearInterval(iv);
+    }, [running, totalSec]);
+    return left;
+  }
+  function ngHeader(left, label, right) {
+    return ce("div", { className: "mb-3 flex items-center justify-between gap-2" },
+      ce("span", { className: "font-display rounded-full px-3 py-2 text-sm font-extrabold", style: { background: left <= 10 ? "#f4212e" : "var(--surface2)", color: left <= 10 ? "#fff" : "var(--text)" } }, "残り ", ngMmss(left)),
+      ce("span", { className: "text-xs font-bold text-[var(--dim)]" }, label),
+      ce("span", { className: "text-sm font-bold" }, right ?? ""));
+  }
+  function ngBtn(label, onClick, opts) {
+    const o = opts || {};
+    return ce("button", { type: "button", onClick, disabled: !!o.disabled, className: "font-display rounded-full px-4 py-2.5 text-sm font-extrabold " + (o.className || ""), style: o.style || { border: "2px solid var(--border)", background: "var(--surface)" } }, label);
+  }
+
+  // ---------- Rush Hour ----------
+  var RUSH_TIME = { 1: 90, 2: 105, 3: 120 };
+  var RUSH_COLORS = ["#38bdf8", "#a3e635", "#fbbf24", "#f472b6", "#34d399", "#818cf8", "#fb923c", "#22d3ee", "#e879f9", "#94a3b8", "#facc15", "#4ade80"];
+  function rushOccupancy(vehicles) {
+    const g = Array.from({ length: 6 }, () => Array(6).fill(-1));
+    vehicles.forEach((v, idx) => {
+      for (let k = 0; k < v.len; k++) {
+        const x = v.horiz ? v.x + k : v.x;
+        const y = v.horiz ? v.y : v.y + k;
+        g[y][x] = idx;
+      }
+    });
+    return g;
+  }
+  function rushSlideRange(vehicles, idx) {
+    const v = vehicles[idx];
+    const g = rushOccupancy(vehicles);
+    let lo, hi;
+    if (v.horiz) {
+      lo = v.x;
+      while (lo > 0 && g[v.y][lo - 1] === -1) lo--;
+      hi = v.x;
+      while (hi + v.len < 6 && g[v.y][hi + v.len] === -1) hi++;
+    } else {
+      lo = v.y;
+      while (lo > 0 && g[lo - 1][v.x] === -1) lo--;
+      hi = v.y;
+      while (hi + v.len < 6 && g[hi + v.len][v.x] === -1) hi++;
+    }
+    return [lo, hi];
+  }
+  function RushChallenge({ band, onFinish }) {
+    const puzzle = import_react3.useMemo(() => {
+      const pool = RUSH_POOL[band] && RUSH_POOL[band].length ? RUSH_POOL[band] : RUSH_POOL[1];
+      const p = pool[pickFreshIndex("rush" + band, pool.length)];
+      return {
+        vehicles: p.v.map((a, i) => ({ x: a[0], y: a[1], len: a[2], horiz: a[3] === 1, red: i === 0 })),
+        minMoves: p.m
+      };
+    }, [band]);
+    const [vehicles, setVehicles] = import_react3.useState(() => puzzle.vehicles);
+    const [history, setHistory] = import_react3.useState([]);
+    const [drag, setDrag] = import_react3.useState(null);
+    const [cleared, setCleared] = import_react3.useState(false);
+    const boardRef = import_react3.useRef(null);
+    const dragRef = import_react3.useRef(null);
+    const doneRef = import_react3.useRef(false);
+    const finishRef = import_react3.useRef(onFinish);
+    finishRef.current = onFinish;
+    const finish = import_react3.useCallback((passed) => {
+      if (doneRef.current)
+        return;
+      doneRef.current = true;
+      finishRef.current({ passed });
+    }, []);
+    const left = useNgCountdown(RUSH_TIME[band] || 90, !cleared, () => finish(false));
+    const commitMove = (idx, newPos) => {
+      const cur = vehicles[idx].horiz ? vehicles[idx].x : vehicles[idx].y;
+      if (cur === newPos)
+        return;
+      const next = vehicles.map((v, j) => j === idx ? (v.horiz ? { ...v, x: newPos } : { ...v, y: newPos }) : v);
+      setHistory((h) => [...h, vehicles]);
+      setVehicles(next);
+      if (next[0].x === 4) {
+        setCleared(true);
+        window.setTimeout(() => finish(true), 500);
+      }
+    };
+    const onPointerDown = (e, idx) => {
+      if (doneRef.current || cleared)
+        return;
+      e.preventDefault();
+      const board = boardRef.current;
+      if (!board)
+        return;
+      const v = vehicles[idx];
+      const [lo, hi] = rushSlideRange(vehicles, idx);
+      dragRef.current = { idx, startX: e.clientX, startY: e.clientY, orig: v.horiz ? v.x : v.y, lo, hi, cell: board.clientWidth / 6 };
+      setDrag({ idx, pos: v.horiz ? v.x : v.y });
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {}
+    };
+    const onPointerMove = (e) => {
+      const d = dragRef.current;
+      if (!d)
+        return;
+      const v = vehicles[d.idx];
+      const deltaPx = v.horiz ? e.clientX - d.startX : e.clientY - d.startY;
+      const dCells = Math.round(deltaPx / d.cell);
+      const pos = Math.min(d.hi, Math.max(d.lo, d.orig + dCells));
+      setDrag({ idx: d.idx, pos });
+    };
+    const onPointerUp = () => {
+      const d = dragRef.current;
+      if (!d)
+        return;
+      dragRef.current = null;
+      if (drag && drag.idx === d.idx)
+        commitMove(d.idx, drag.pos);
+      setDrag(null);
+    };
+    const undo = () => {
+      if (doneRef.current || cleared || !history.length)
+        return;
+      setVehicles(history[history.length - 1]);
+      setHistory(history.slice(0, -1));
+    };
+    const restart = () => {
+      if (doneRef.current || cleared)
+        return;
+      setVehicles(puzzle.vehicles);
+      setHistory([]);
+      setDrag(null);
+      dragRef.current = null;
+    };
+    const dispVehicles = vehicles.map((v, i) => drag && drag.idx === i ? (v.horiz ? { ...v, x: drag.pos } : { ...v, y: drag.pos }) : v);
+    return ce("div", null,
+      ngHeader(left, `最短 ${puzzle.minMoves} 手（1マス移動＝1手）`, `${history.length} 手`),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "車をドラッグして前後に動かし、赤い車を右端の出口から出せばクリアです。"),
+      ce("div", {
+        ref: boardRef,
+        className: "relative mx-auto w-full touch-none select-none overflow-hidden rounded-xl",
+        style: { aspectRatio: "1", maxWidth: 420, background: "var(--surface2)", backgroundImage: "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)", backgroundSize: "16.666% 16.666%" },
+        onPointerMove, onPointerUp, onPointerCancel: onPointerUp
+      },
+        ce("div", { className: "absolute flex items-center justify-center rounded-lg font-display text-xs font-extrabold text-white", style: { right: 0, top: `${2 / 6 * 100}%`, height: `${1 / 6 * 100}%`, width: "7%", background: "#65a30d", writingMode: "vertical-rl" } }, "出口"),
+        dispVehicles.map((v, i) => ce("div", {
+          key: i,
+          role: "button",
+          "aria-label": v.red ? "赤い車" : `車${i}`,
+          onPointerDown: (e) => onPointerDown(e, i),
+          className: "absolute touch-none",
+          style: {
+            left: `${v.x / 6 * 100}%`, top: `${v.y / 6 * 100}%`,
+            width: `${(v.horiz ? v.len : 1) / 6 * 100}%`, height: `${(v.horiz ? 1 : v.len) / 6 * 100}%`,
+            padding: "3px", cursor: "grab", zIndex: drag && drag.idx === i ? 5 : 2
+          }
+        }, ce("div", {
+          className: "flex h-full w-full items-center justify-center rounded-lg font-display text-sm font-extrabold text-white shadow",
+          style: { background: v.red ? "#e02424" : RUSH_COLORS[i % RUSH_COLORS.length], outline: drag && drag.idx === i ? "3px solid var(--text)" : "none" }
+        }, v.red ? "自車" : "")))
+      ),
+      cleared && ce("p", { className: "mt-3 text-center font-display text-lg font-extrabold", style: { color: "#65a30d" } }, "脱出成功！"),
+      ce("div", { className: "mt-4 flex justify-center gap-2" },
+        ngBtn("1手戻す", undo, { disabled: !history.length || cleared }),
+        ngBtn("最初から", restart, { disabled: cleared }))
+    );
+  }
+
+  // ---------- Matchstick ----------
+  var SEG_ORDER = ["a", "b", "c", "d", "e", "f", "g"];
+  var SEG_SETS = { 0: "abcdef", 1: "bc", 2: "abdeg", 3: "abcdg", 4: "bcfg", 5: "acdfg", 6: "acdefg", 7: "abc", 8: "abcdefg", 9: "abcdfg" };
+  function digitMaskOf(d) {
+    let m = 0;
+    for (const c of SEG_SETS[d])
+      m |= 1 << SEG_ORDER.indexOf(c);
+    return m;
+  }
+  var MASK_TO_DIGIT = {};
+  for (let d = 0; d <= 9; d++)
+    MASK_TO_DIGIT[digitMaskOf(d)] = String(d);
+  function matchBuildPos(a, op, b, r) {
+    const s = String(a) + op + String(b) + "=" + String(r);
+    const pos = [];
+    for (const ch of s) {
+      if (ch >= "0" && ch <= "9")
+        pos.push({ kind: "d", mask: digitMaskOf(+ch), slots: 7 });
+      else if (ch === "+")
+        pos.push({ kind: "op", mask: 3, slots: 2 });
+      else if (ch === "-")
+        pos.push({ kind: "op", mask: 2, slots: 2 });
+      else
+        pos.push({ kind: "eq", mask: 3, slots: 2 });
+    }
+    return pos;
+  }
+  function matchDecode(pos) {
+    let s = "";
+    for (const p of pos) {
+      if (p.kind === "d") {
+        const d = MASK_TO_DIGIT[p.mask];
+        if (d === undefined)
+          return null;
+        s += d;
+      } else if (p.kind === "op") {
+        if (p.mask === 3) s += "+";
+        else if (p.kind === "op" && p.mask === 2) s += "-";
+        else return null;
+      } else {
+        if (p.mask === 3) s += "=";
+        else return null;
+      }
+    }
+    return s;
+  }
+  function matchEval(pos) {
+    const s = matchDecode(pos);
+    if (!s)
+      return false;
+    const m = s.match(/^(\d+)([+-])(\d+)=(\d+)$/);
+    if (!m)
+      return false;
+    for (const g of [m[1], m[3], m[4]])
+      if (g.length > 1 && g[0] === "0")
+        return false;
+    const a = +m[1], b = +m[3], r = +m[4];
+    return m[2] === "+" ? a + b === r : a - b === r;
+  }
+  function matchCountSolutions(pos) {
+    let count = 0;
+    for (let i = 0; i < pos.length; i++)
+      for (let b = 0; b < pos[i].slots; b++) {
+        if (!(pos[i].mask >> b & 1))
+          continue;
+        for (let j = 0; j < pos.length; j++)
+          for (let c = 0; c < pos[j].slots; c++) {
+            if (pos[j].mask >> c & 1)
+              continue;
+            const np = pos.map((p) => ({ ...p }));
+            np[i].mask &= ~(1 << b);
+            np[j].mask |= 1 << c;
+            if (matchEval(np))
+              count++;
+          }
+      }
+    return count;
+  }
+  function matchRandomEquation(band) {
+    const pats = { 1: [[1, 1, 1]], 2: [[1, 1, 2], [2, 1, 1], [1, 2, 2]], 3: [[2, 2, 2], [2, 1, 2], [1, 2, 3], [3, 1, 2]] }[band];
+    for (let t = 0; t < 300; t++) {
+      const [la, lb, lr] = pats[Math.floor(Math.random() * pats.length)];
+      const op = Math.random() < 0.5 ? "+" : "-";
+      const num = (n) => n === 1 ? Math.floor(Math.random() * 10) : Math.pow(10, n - 1) + Math.floor(Math.random() * 9 * Math.pow(10, n - 1));
+      const a = num(la), b = num(lb);
+      const r = op === "+" ? a + b : a - b;
+      if (r < 0)
+        continue;
+      if (String(r).length !== lr)
+        continue;
+      return { a, op, b, r };
+    }
+    return { a: 3, op: "+", b: 4, r: 7 };
+  }
+  function matchGenerate(band) {
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const eq = matchRandomEquation(band);
+      const solved = matchBuildPos(eq.a, eq.op, eq.b, eq.r);
+      const cands = [];
+      for (let i = 0; i < solved.length; i++)
+        for (let b = 0; b < solved[i].slots; b++) {
+          if (!(solved[i].mask >> b & 1))
+            continue;
+          for (let j = 0; j < solved.length; j++)
+            for (let c = 0; c < solved[j].slots; c++) {
+              if (solved[j].mask >> c & 1)
+                continue;
+              const np = solved.map((p) => ({ ...p }));
+              np[i].mask &= ~(1 << b);
+              np[j].mask |= 1 << c;
+              if (!matchEval(np))
+                cands.push(np);
+            }
+        }
+      const shuffled = shuffle(cands);
+      for (const cand of shuffled.slice(0, 40)) {
+        if (matchCountSolutions(cand) === 1)
+          return cand;
+      }
+    }
+    return null;
+  }
+  function matchOneMove(a, b) {
+    let removed = 0, added = 0;
+    for (let i = 0; i < a.length; i++) {
+      let rm = a[i].mask & ~b[i].mask, ad = b[i].mask & ~a[i].mask;
+      while (rm) { removed += rm & 1; rm >>= 1; }
+      while (ad) { added += ad & 1; ad >>= 1; }
+    }
+    return removed === 1 && added === 1;
+  }
+  var SEG_POS = {
+    a: { left: "18%", top: "0%", width: "64%", height: "9%" },
+    b: { right: "0%", top: "8%", width: "14%", height: "38%" },
+    c: { right: "0%", bottom: "8%", width: "14%", height: "38%" },
+    d: { left: "18%", bottom: "0%", width: "64%", height: "9%" },
+    e: { left: "0%", bottom: "8%", width: "14%", height: "38%" },
+    f: { left: "0%", top: "8%", width: "14%", height: "38%" },
+    g: { left: "18%", top: "45.5%", width: "64%", height: "9%" }
+  };
+  function MatchChallenge({ band, onFinish }) {
+    const initial = import_react3.useMemo(() => {
+      let g = matchGenerate(band);
+      for (let i = 0; !g && i < 5; i++)
+        g = matchGenerate(band);
+      if (!g)
+        g = matchGenerate(1);
+      return g;
+    }, [band]);
+    const [pos, setPos] = import_react3.useState(() => initial.map((p) => ({ ...p })));
+    const [sel, setSel] = import_react3.useState(null);
+    const [misses, setMisses] = import_react3.useState(0);
+    const [msg, setMsg] = import_react3.useState("マッチをタップで選び、置きたい場所をタップして動かそう");
+    const [cleared, setCleared] = import_react3.useState(false);
+    const doneRef = import_react3.useRef(false);
+    const finishRef = import_react3.useRef(onFinish);
+    finishRef.current = onFinish;
+    const onStickTap = (pi, bit) => {
+      if (doneRef.current || cleared)
+        return;
+      const isOn = (pos[pi].mask >> bit & 1) === 1;
+      if (isOn) {
+        setSel(sel && sel.pi === pi && sel.bit === bit ? null : { pi, bit });
+        return;
+      }
+      if (!sel)
+        return;
+      if (sel.pi === pi && sel.bit === bit)
+        return;
+      const np = pos.map((p) => ({ ...p }));
+      np[sel.pi].mask &= ~(1 << sel.bit);
+      np[pi].mask |= 1 << bit;
+      setPos(np);
+      setSel(null);
+    };
+    const judge = () => {
+      if (doneRef.current || cleared)
+        return;
+      if (!matchOneMove(initial, pos)) {
+        setMsg("動かすのはちょうど1本だけです。今の状態を確認してみよう");
+        return;
+      }
+      if (matchEval(pos)) {
+        setCleared(true);
+        doneRef.current = true;
+        setMsg("正しい式になりました！");
+        window.setTimeout(() => finishRef.current({ passed: true }), 700);
+        return;
+      }
+      const nm = misses + 1;
+      setMisses(nm);
+      if (nm >= 3) {
+        doneRef.current = true;
+        setMsg("ミス3回で失敗です…");
+        window.setTimeout(() => finishRef.current({ passed: false }), 700);
+      } else {
+        setMsg(`まだ正しい式ではありません（ミス ${nm} 回目）。動かしたマッチはそのままで直せます`);
+      }
+    };
+    const reset = () => {
+      if (doneRef.current || cleared)
+        return;
+      setPos(initial.map((p) => ({ ...p })));
+      setSel(null);
+      setMsg("最初の状態に戻しました");
+    };
+    const segEl = (pi, bit, stylePos) => {
+      const on = (pos[pi].mask >> bit & 1) === 1;
+      const isSel = sel && sel.pi === pi && sel.bit === bit;
+      return ce("button", {
+        type: "button",
+        key: bit,
+        "aria-label": on ? "マッチ" : "空きスロット",
+        onClick: () => onStickTap(pi, bit),
+        className: "absolute",
+        style: { ...stylePos, borderRadius: "999px", background: on ? (isSel ? "#f4212e" : "#d97706") : "var(--surface2)", border: on ? "none" : "1.5px dashed var(--border)", boxShadow: isSel ? "0 0 0 3px #f4212e55" : "none", cursor: "pointer", padding: 0 }
+      });
+    };
+    const glyphEl = (p, pi) => {
+      if (p.kind === "d") {
+        return ce("div", { key: pi, className: "relative shrink-0", style: { width: 40, height: 68 } },
+          SEG_ORDER.map((s) => segEl(pi, SEG_ORDER.indexOf(s), SEG_POS[s])));
+      }
+      if (p.kind === "op") {
+        return ce("div", { key: pi, className: "relative shrink-0", style: { width: 30, height: 68 } },
+          segEl(pi, 0, { left: "38%", top: "12%", width: "24%", height: "76%" }),
+          segEl(pi, 1, { left: "4%", top: "44%", width: "92%", height: "11%" }));
+      }
+      return ce("div", { key: pi, className: "relative shrink-0", style: { width: 32, height: 68 } },
+        segEl(pi, 0, { left: "4%", top: "26%", width: "92%", height: "11%" }),
+        segEl(pi, 1, { left: "4%", top: "62%", width: "92%", height: "11%" }));
+    };
+    const decoded = matchDecode(pos);
+    return ce("div", null,
+      ce("div", { className: "mb-3 flex items-center justify-between" },
+        ce("span", { className: "text-sm font-bold" }, "ミス ", ce("span", { style: { color: "#f4212e" } }, "●".repeat(misses)), ce("span", { style: { color: "var(--border)" } }, "●".repeat(Math.max(0, 3 - misses)))),
+        ce("span", { className: "text-xs font-bold text-[var(--dim)]" }, "動かすのはちょうど1本")),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "マッチ棒で作られた式を、ちょうど1本だけ動かして正しい式にしてください。「決定」で判定し、ミス3回で失敗です（決定前なら何度でも動かし直せます）。"),
+      ce("div", { className: "flex items-start justify-center gap-1.5 rounded-2xl py-5", style: { background: "var(--surface2)", overflowX: "auto" } },
+        pos.map((p, pi) => glyphEl(p, pi))),
+      ce("p", { className: "mt-3 text-center text-sm font-bold text-[var(--dim)]" }, "現在の式：", decoded ? decoded.replace(/(\d)(?=\d)/g, "$1 ").split("").join(" ") : "（式の形になっていません）"),
+      ce("p", { className: "mt-2 min-h-5 text-center text-sm", role: "status" }, msg),
+      ce("div", { className: "mt-3 flex justify-center gap-2" },
+        ngBtn("決定", judge, { disabled: cleared, style: { background: "var(--accent)", color: "#fff" } }),
+        ngBtn("最初に戻す", reset, { disabled: cleared }))
+    );
+  }
+
+  // ---------- Lights Out ----------
+  var LIGHTS_CONF = { 1: { size: 4, presses: 6, time: 90 }, 2: { size: 5, presses: 10, time: 120 }, 3: { size: 6, presses: 14, time: 150 } };
+  function lightsPress(board, size, i) {
+    const x = i % size, y = Math.floor(i / size);
+    const nb = [...board];
+    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && nx < size && ny >= 0 && ny < size)
+        nb[ny * size + nx] = !nb[ny * size + nx];
+    }
+    return nb;
+  }
+  function LightsChallenge({ band, onFinish }) {
+    const conf = LIGHTS_CONF[band] || LIGHTS_CONF[1];
+    const initial = import_react3.useMemo(() => {
+      let board = Array(conf.size * conf.size).fill(false);
+      const cells = shuffle(Array.from({ length: conf.size * conf.size }, (_, i) => i)).slice(0, conf.presses);
+      for (const c of cells)
+        board = lightsPress(board, conf.size, c);
+      return board;
+    }, [band]);
+    const [board, setBoard] = import_react3.useState(() => initial);
+    const [taps, setTaps] = import_react3.useState(0);
+    const [cleared, setCleared] = import_react3.useState(false);
+    const doneRef = import_react3.useRef(false);
+    const finishRef = import_react3.useRef(onFinish);
+    finishRef.current = onFinish;
+    const finish = import_react3.useCallback((passed) => {
+      if (doneRef.current)
+        return;
+      doneRef.current = true;
+      finishRef.current({ passed });
+    }, []);
+    const left = useNgCountdown(conf.time, !cleared, () => finish(false));
+    const onTapCell = (i) => {
+      if (doneRef.current || cleared)
+        return;
+      const nb = lightsPress(board, conf.size, i);
+      setBoard(nb);
+      setTaps((t) => t + 1);
+      if (nb.every((v) => !v)) {
+        setCleared(true);
+        window.setTimeout(() => finish(true), 500);
+      }
+    };
+    const litCount = board.filter(Boolean).length;
+    return ce("div", null,
+      ngHeader(left, `${conf.size}×${conf.size} ／ 点灯 ${litCount} 個`, `${taps} タップ`),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "マスをタップすると、そのマスと上下左右が反転します。すべてのライトを消せばクリアです。"),
+      ce("div", { className: "mx-auto grid w-full gap-1.5", style: { maxWidth: 380, gridTemplateColumns: `repeat(${conf.size}, minmax(0, 1fr))` } },
+        board.map((on, i) => ce("button", {
+          key: i, type: "button", "aria-label": on ? "点灯" : "消灯", onClick: () => onTapCell(i),
+          className: "aspect-square rounded-xl transition",
+          style: { background: on ? "#fbbf24" : "var(--surface2)", boxShadow: on ? "inset 0 0 0 2px #d97706, 0 0 14px #fbbf2488" : "inset 0 0 0 1px var(--border)" }
+        }))),
+      cleared && ce("p", { className: "mt-3 text-center font-display text-lg font-extrabold", style: { color: "#65a30d" } }, "全消灯！"),
+      ce("div", { className: "mt-4 flex justify-center gap-2" },
+        ngBtn("最初から", () => { if (!doneRef.current && !cleared) { setBoard(initial); setTaps(0); } }, { disabled: cleared }))
+    );
+  }
+
+  // ---------- River Crossing ----------
+  var RIVER_CONF = {
+    1: { items: ["狼", "ヤギ", "キャベツ"], cap: 1, pairs: [[0, 1, "狼がヤギを食べてしまう"], [1, 2, "ヤギがキャベツを食べてしまう"]], min: 7 },
+    2: { items: ["狼", "ヤギ", "キャベツ", "花束", "種袋"], cap: 1, pairs: [[0, 1, "狼がヤギを食べてしまう"], [1, 2, "ヤギがキャベツを食べてしまう"]], min: 11 },
+    3: { items: ["狼", "ヤギ", "キャベツ", "狐", "鶏", "米", "犬"], cap: 2, pairs: [[0, 1, "狼がヤギを食べてしまう"], [1, 2, "ヤギがキャベツを食べてしまう"], [3, 4, "狐が鶏を食べてしまう"], [4, 5, "鶏が米を食べてしまう"], [6, 1, "犬がヤギを追い回してしまう"]], min: 9 }
+  };
+  function RiverChallenge({ band, onFinish }) {
+    const conf = RIVER_CONF[band] || RIVER_CONF[1];
+    const n = conf.items.length;
+    const [side, setSide] = import_react3.useState(() => Array(n).fill(true));
+    const [farmerLeft, setFarmerLeft] = import_react3.useState(true);
+    const [loaded, setLoaded] = import_react3.useState([]);
+    const [misses, setMisses] = import_react3.useState(0);
+    const [crossings, setCrossings] = import_react3.useState(0);
+    const [msg, setMsg] = import_react3.useState("荷物をタップでボートに乗せ、「渡る」を押そう");
+    const [cleared, setCleared] = import_react3.useState(false);
+    const doneRef = import_react3.useRef(false);
+    const finishRef = import_react3.useRef(onFinish);
+    finishRef.current = onFinish;
+    const toggleLoad = (i) => {
+      if (doneRef.current || cleared)
+        return;
+      if (side[i] !== farmerLeft)
+        return;
+      if (loaded.includes(i))
+        setLoaded(loaded.filter((x) => x !== i));
+      else if (loaded.length < conf.cap)
+        setLoaded([...loaded, i]);
+      else
+        setMsg(`ボートに乗せられるのは ${conf.cap} 個までです`);
+    };
+    const cross = () => {
+      if (doneRef.current || cleared)
+        return;
+      const newSide = side.map((s, i) => loaded.includes(i) ? !s : s);
+      const newFarmerLeft = !farmerLeft;
+      let dangerMsg = null;
+      for (const [a, b, text] of conf.pairs) {
+        if (newSide[a] !== newFarmerLeft && newSide[b] !== newFarmerLeft && newSide[a] === newSide[b])
+          dangerMsg = text;
+      }
+      if (dangerMsg) {
+        const nm = misses + 1;
+        setMisses(nm);
+        setLoaded([]);
+        if (nm >= 3) {
+          doneRef.current = true;
+          setMsg(`${dangerMsg}…ミス3回で失敗です`);
+          window.setTimeout(() => finishRef.current({ passed: false }), 800);
+        } else {
+          setMsg(`${dangerMsg}！ 農夫のいない岸に残してはいけません（ミス ${nm} 回目）。渡航は取り消されました`);
+        }
+        return;
+      }
+      setSide(newSide);
+      setFarmerLeft(newFarmerLeft);
+      setLoaded([]);
+      const nc = crossings + 1;
+      setCrossings(nc);
+      if (newSide.every((s) => !s) && !newFarmerLeft) {
+        setCleared(true);
+        doneRef.current = true;
+        setMsg(`${nc} 回の渡航で全部運べました！`);
+        window.setTimeout(() => finishRef.current({ passed: true }), 800);
+      } else {
+        setMsg("渡りました");
+      }
+    };
+    const bankEl = (isLeft) => {
+      const here = conf.items.map((name, i) => ({ name, i })).filter(({ i }) => side[i] === isLeft && !loaded.includes(i));
+      const isFarmerHere = farmerLeft === isLeft;
+      return ce("div", { className: "flex-1 rounded-2xl p-4", style: { minHeight: 120, background: isFarmerHere ? "#65a30d22" : "var(--surface2)", border: "2px solid " + (isFarmerHere ? "#65a30d" : "var(--border)") } },
+        ce("p", { className: "mb-2 text-center text-xs font-bold text-[var(--dim)]" }, isLeft ? "こちら岸" : "向こう岸", isFarmerHere ? "（農夫）" : ""),
+        ce("div", { className: "flex flex-wrap justify-center gap-1.5" },
+          here.length ? here.map(({ name, i }) => ce("button", {
+            key: i, type: "button", onClick: () => toggleLoad(i), disabled: !isFarmerHere,
+            className: "font-display rounded-full px-3 py-2 text-sm font-extrabold",
+            style: { background: "var(--surface)", border: "2px solid var(--border)", opacity: isFarmerHere ? 1 : 0.75 }
+          }, name)) : ce("span", { className: "text-xs text-[var(--dim)]" }, "なし")));
+    };
+    return ce("div", null,
+      ce("div", { className: "mb-3 flex items-center justify-between" },
+        ce("span", { className: "text-sm font-bold" }, "ミス ", ce("span", { style: { color: "#f4212e" } }, "●".repeat(misses)), ce("span", { style: { color: "var(--border)" } }, "●".repeat(Math.max(0, 3 - misses)))),
+        ce("span", { className: "text-sm font-bold" }, `${crossings} 回渡航（最短 ${conf.min} 回）`)),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "農夫がボートで荷物を全て向こう岸へ運んでください。ボートの定員は荷物 ", conf.cap, " 個まで（農夫は常に乗ります）。農夫のいない岸に危険な組み合わせを残すとミスになり、ミス3回で失敗です。"),
+      ce("div", { className: "mb-2 flex flex-wrap gap-x-3 gap-y-1" },
+        conf.pairs.map(([a, b, text], k) => ce("span", { key: k, className: "rounded-full px-3 py-2 text-[11px] font-bold", style: { background: "#f4212e18", color: "#f4212e" } }, `${conf.items[a]}＋${conf.items[b]} はダメ`))),
+      ce("div", { className: "flex items-stretch gap-2" },
+        bankEl(true),
+        ce("div", { className: "flex shrink-0 flex-col items-center justify-center rounded-2xl px-1 py-2", style: { width: 86, background: "#38bdf822", border: "2px dashed #38bdf8" } },
+          ce("span", { className: "text-[11px] font-bold text-[var(--dim)]" }, "ボート（", farmerLeft ? "左岸" : "右岸", "）"),
+          ce("span", { className: "font-display mt-1 text-sm font-extrabold" }, "農夫"),
+          loaded.map((i) => ce("span", { key: i, className: "font-display mt-1 rounded-full bg-[var(--surface)] text-xs font-extrabold", style: { border: "1.5px solid var(--border)", padding: "2px 8px" } }, conf.items[i])),
+          ce("button", { type: "button", onClick: cross, disabled: cleared, className: "font-display mt-2 w-full rounded-full py-2 text-sm font-extrabold text-white", style: { background: "var(--accent)" } }, farmerLeft ? "渡る →" : "← 戻る")),
+        bankEl(false)),
+      ce("p", { className: "mt-3 min-h-5 text-center text-sm", role: "status" }, msg)
+    );
+  }
+
+  // ---------- Hit & Blow ----------
+  var HITBLOW_CONF = { 1: { len: 3, max: 8 }, 2: { len: 4, max: 8 }, 3: { len: 4, max: 6 } };
+  function HitBlowChallenge({ band, onFinish }) {
+    const conf = HITBLOW_CONF[band] || HITBLOW_CONF[1];
+    const secret = import_react3.useMemo(() => {
+      const first = 1 + Math.floor(Math.random() * 9);
+      const rest = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter((d) => d !== first)).slice(0, conf.len - 1);
+      return [first, ...rest];
+    }, [band]);
+    const [current, setCurrent] = import_react3.useState([]);
+    const [history, setHistory] = import_react3.useState([]);
+    const [msg, setMsg] = import_react3.useState("数字を入力して「判定」を押そう");
+    const [cleared, setCleared] = import_react3.useState(false);
+    const doneRef = import_react3.useRef(false);
+    const finishRef = import_react3.useRef(onFinish);
+    finishRef.current = onFinish;
+    const pressDigit = (d) => {
+      if (doneRef.current || cleared)
+        return;
+      if (current.includes(d)) {
+        setMsg("同じ数字は使えません");
+        return;
+      }
+      if (current.length >= conf.len)
+        return;
+      if (current.length === 0 && d === 0) {
+        setMsg("先頭は 0 にできません");
+        return;
+      }
+      setCurrent([...current, d]);
+      setMsg("");
+    };
+    const judge = () => {
+      if (doneRef.current || cleared || current.length !== conf.len)
+        return;
+      let hit = 0, blow = 0;
+      current.forEach((d, i) => {
+        if (d === secret[i])
+          hit++;
+        else if (secret.includes(d))
+          blow++;
+      });
+      const nh = [...history, { guess: [...current], hit, blow }];
+      setHistory(nh);
+      setCurrent([]);
+      if (hit === conf.len) {
+        setCleared(true);
+        doneRef.current = true;
+        setMsg(`${nh.length} 回で正解！`);
+        window.setTimeout(() => finishRef.current({ passed: true }), 800);
+      } else if (nh.length >= conf.max) {
+        doneRef.current = true;
+        setMsg(`回数上限です… 正解は ${secret.join("")} でした`);
+        window.setTimeout(() => finishRef.current({ passed: false }), 1000);
+      } else {
+        setMsg(`ヒット ${hit} ／ ブロー ${blow}（残り ${conf.max - nh.length} 回）`);
+      }
+    };
+    return ce("div", null,
+      ce("div", { className: "mb-3 flex items-center justify-between" },
+        ce("span", { className: "font-display rounded-full px-3 py-2 text-sm font-extrabold", style: { background: "var(--surface2)" } }, `${conf.len} 桁`),
+        ce("span", { className: "text-sm font-bold" }, `残り ${Math.max(0, conf.max - history.length)} 回`)),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "秘密の数字を当ててください。各桁の数字はすべて異なり、先頭は 0 ではありません。ヒット＝数字と位置が一致、ブロー＝数字だけ一致です。時間制限はなく、回数制限のみです。"),
+      ce("div", { className: "mb-3 flex justify-center gap-2" },
+        Array.from({ length: conf.len }, (_, i) => ce("span", { key: i, className: "font-display flex h-14 w-12 items-center justify-center rounded-xl text-2xl font-extrabold", style: { background: "var(--surface2)", border: "2px solid var(--border)" } }, current[i] !== undefined ? String(current[i]) : "・"))),
+      ce("div", { className: "mx-auto grid w-full gap-2", style: { maxWidth: 300, gridTemplateColumns: "repeat(5, minmax(0, 1fr))" } },
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((d) => ce("button", {
+          key: d, type: "button", onClick: () => pressDigit(d), disabled: current.includes(d) || cleared,
+          className: "font-display rounded-xl py-3 text-lg font-extrabold",
+          style: { background: "var(--surface)", border: "2px solid var(--border)", opacity: current.includes(d) ? 0.35 : 1 }
+        }, String(d)))),
+      ce("div", { className: "mt-3 flex justify-center gap-2" },
+        ngBtn("消す", () => setCurrent(current.slice(0, -1)), { disabled: !current.length || cleared }),
+        ngBtn("判定", judge, { disabled: current.length !== conf.len || cleared, style: { background: "var(--accent)", color: "#fff" } })),
+      ce("p", { className: "mt-2 min-h-5 text-center text-sm", role: "status" }, msg),
+      history.length > 0 && ce("div", { className: "mt-3" },
+        ce("h3", { className: "text-sm font-bold" }, "履歴"),
+        ce("ul", { className: "mt-1.5 divide-y", style: { borderColor: "var(--border)" } },
+          [...history].reverse().map((h, ri) => ce("li", { key: ri, className: "flex items-center justify-between py-2 text-sm" },
+            ce("span", { className: "font-display text-base font-extrabold tracking-widest" }, h.guess.join("")),
+            ce("span", null, ce("span", { className: "font-bold", style: { color: "#65a30d" } }, `ヒット ${h.hit}`), " ／ ", ce("span", { className: "font-bold", style: { color: "#d97706" } }, `ブロー ${h.blow}`))))))
+    );
+  }
+
+  // ---------- One-stroke ----------
+  var STROKE_CONF = { 1: { n: 6, extras: [3], time: 90 }, 2: { n: 7, extras: [3, 3], time: 120 }, 3: { n: 9, extras: [3, 3, 4], time: 150 } };
+  function strokeGenerateFig(nNodes, extraCycles) {
+    const pts = [];
+    for (let i = 0; i < nNodes; i++) {
+      const a = Math.PI * 2 * i / nNodes - Math.PI / 2;
+      pts.push({ x: 150 + 112 * Math.cos(a), y: 150 + 112 * Math.sin(a), ang: a });
+    }
+    const edgeSet = new Set();
+    const edges = [];
+    const key = (u, v) => u < v ? u + "-" + v : v + "-" + u;
+    const addEdge = (u, v) => {
+      if (u === v || edgeSet.has(key(u, v)))
+        return;
+      edgeSet.add(key(u, v));
+      edges.push([u, v]);
+    };
+    for (let i = 0; i < nNodes; i++)
+      addEdge(i, (i + 1) % nNodes);
+    for (const sz of extraCycles) {
+      for (let tr = 0; tr < 60; tr++) {
+        const subset = shuffle(Array.from({ length: nNodes }, (_, i) => i)).slice(0, sz).sort((a, b) => pts[a].ang - pts[b].ang);
+        let allNew = true;
+        for (let i = 0; i < subset.length; i++) {
+          if (edgeSet.has(key(subset[i], subset[(i + 1) % subset.length]))) {
+            allNew = false;
+            break;
+          }
+        }
+        if (!allNew)
+          continue;
+        for (let i = 0; i < subset.length; i++)
+          addEdge(subset[i], subset[(i + 1) % subset.length]);
+        break;
+      }
+    }
+    return { pts, edges };
+  }
+  function StrokeChallenge({ band, onFinish }) {
+    const conf = STROKE_CONF[band] || STROKE_CONF[1];
+    const fig = import_react3.useMemo(() => strokeGenerateFig(conf.n, conf.extras), [band]);
+    const [used, setUsed] = import_react3.useState(() => []);
+    const [nodeStack, setNodeStack] = import_react3.useState(() => []);
+    const [cleared, setCleared] = import_react3.useState(false);
+    const svgRef = import_react3.useRef(null);
+    const downRef = import_react3.useRef(false);
+    const doneRef = import_react3.useRef(false);
+    const finishRef = import_react3.useRef(onFinish);
+    finishRef.current = onFinish;
+    const finish = import_react3.useCallback((passed) => {
+      if (doneRef.current)
+        return;
+      doneRef.current = true;
+      finishRef.current({ passed });
+    }, []);
+    const left = useNgCountdown(conf.time, !cleared, () => finish(false));
+    const current = nodeStack.length ? nodeStack[nodeStack.length - 1] : null;
+    const edgeIndex = import_react3.useMemo(() => {
+      const m = new Map();
+      fig.edges.forEach(([u, v], i) => m.set(u < v ? u + "-" + v : v + "-" + u, i));
+      return m;
+    }, [fig]);
+    const nearestNode = (e) => {
+      const svg = svgRef.current;
+      if (!svg)
+        return null;
+      const rect = svg.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width * 300;
+      const y = (e.clientY - rect.top) / rect.height * 300;
+      let best = null, bestD = 34;
+      fig.pts.forEach((p, i) => {
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      return best;
+    };
+    const tryTraverse = (v) => {
+      if (v === null || doneRef.current || cleared)
+        return;
+      if (current === null) {
+        setNodeStack([v]);
+        return;
+      }
+      if (v === current)
+        return;
+      const k = current < v ? current + "-" + v : v + "-" + current;
+      const ei = edgeIndex.get(k);
+      if (ei === undefined || used.includes(ei))
+        return;
+      const nu = [...used, ei];
+      setUsed(nu);
+      setNodeStack([...nodeStack, v]);
+      if (nu.length === fig.edges.length) {
+        setCleared(true);
+        window.setTimeout(() => finish(true), 500);
+      }
+    };
+    const onPointerDown = (e) => {
+      downRef.current = true;
+      tryTraverse(nearestNode(e));
+    };
+    const onPointerMove = (e) => {
+      if (!downRef.current)
+        return;
+      tryTraverse(nearestNode(e));
+    };
+    const onPointerUp = () => {
+      downRef.current = false;
+    };
+    const undo = () => {
+      if (doneRef.current || cleared || !used.length)
+        return;
+      setUsed(used.slice(0, -1));
+      setNodeStack(nodeStack.slice(0, -1));
+    };
+    const restart = () => {
+      if (doneRef.current || cleared)
+        return;
+      setUsed([]);
+      setNodeStack([]);
+    };
+    return ce("div", null,
+      ngHeader(left, `線 ${fig.edges.length} 本`, `${used.length} / ${fig.edges.length} 本`),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, "好きな点から始めて、指を離さずにすべての線を1回ずつなぞってください（同じ線は2回なぞれません）。行き詰まったら「1つ戻す」か「やり直し」を使えます。"),
+      ce("svg", {
+        ref: svgRef, viewBox: "0 0 300 300", className: "mx-auto w-full touch-none select-none rounded-2xl",
+        style: { background: "var(--surface2)", aspectRatio: "1", maxWidth: 400 },
+        onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp, onPointerLeave: onPointerUp
+      },
+        fig.edges.map(([u, v], i) => ce("line", {
+          key: "e" + i, x1: fig.pts[u].x, y1: fig.pts[u].y, x2: fig.pts[v].x, y2: fig.pts[v].y,
+          stroke: used.includes(i) ? "#65a30d" : "var(--dim)", strokeWidth: used.includes(i) ? 7 : 4, strokeLinecap: "round", opacity: used.includes(i) ? 1 : 0.55
+        })),
+        nodeStack.length > 1 && ce("polyline", {
+          points: nodeStack.map((ni) => `${fig.pts[ni].x},${fig.pts[ni].y}`).join(" "),
+          fill: "none", stroke: "#65a30d", strokeWidth: 2.5, strokeDasharray: "1 7", strokeLinecap: "round", opacity: 0.7
+        }),
+        fig.pts.map((p, i) => ce("circle", {
+          key: "n" + i, cx: p.x, cy: p.y, r: current === i ? 13 : 10,
+          fill: current === i ? "#65a30d" : "var(--surface)", stroke: "var(--text)", strokeWidth: 2.5
+        }))),
+      cleared && ce("p", { className: "mt-3 text-center font-display text-lg font-extrabold", style: { color: "#65a30d" } }, "一筆書き成功！"),
+      current === null && ce("p", { className: "mt-2 text-center text-xs text-[var(--dim)]" }, "どれかの点をタップしてスタート"),
+      ce("div", { className: "mt-3 flex justify-center gap-2" },
+        ngBtn("1つ戻す", undo, { disabled: !used.length || cleared }),
+        ngBtn("やり直し", restart, { disabled: cleared }))
+    );
+  }
+
   function ChallengeGame({
     type,
     level,
@@ -19119,6 +19965,36 @@ React keys must be passed directly to JSX without using spread:
         onFinish,
         milestoneMax
       }, undefined, false, undefined, this);
+    if (type === "rush")
+      return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(RushChallenge, {
+        band,
+        onFinish
+      }, undefined, false, undefined, this);
+    if (type === "match")
+      return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(MatchChallenge, {
+        band,
+        onFinish
+      }, undefined, false, undefined, this);
+    if (type === "lights")
+      return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(LightsChallenge, {
+        band,
+        onFinish
+      }, undefined, false, undefined, this);
+    if (type === "river")
+      return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(RiverChallenge, {
+        band,
+        onFinish
+      }, undefined, false, undefined, this);
+    if (type === "hitblow")
+      return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(HitBlowChallenge, {
+        band,
+        onFinish
+      }, undefined, false, undefined, this);
+    if (type === "stroke")
+      return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(StrokeChallenge, {
+        band,
+        onFinish
+      }, undefined, false, undefined, this);
     return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(RhythmChallenge, {
       level,
       band,
@@ -19128,15 +20004,38 @@ React keys must be passed directly to JSX without using spread:
 
   // src/App.tsx
   var jsx_dev_runtime2 = __toESM(require_jsx_dev_runtime());
-  var CHALLENGE_TYPES = ["rhythm", "shogi"];
+  var CHALLENGE_TYPES = ["rhythm", "shogi", "rush", "match", "lights", "river", "hitblow", "stroke"];
+  var GATE_TYPE_WEIGHTS = { rhythm: 1, shogi: 1, rush: 1, match: 1, lights: 1, river: 1, hitblow: 1, stroke: 1 };
+  function pickGateType() {
+    const total = CHALLENGE_TYPES.reduce((a, t) => a + (GATE_TYPE_WEIGHTS[t] ?? 1), 0);
+    let r = Math.random() * total;
+    for (const t of CHALLENGE_TYPES) {
+      r -= GATE_TYPE_WEIGHTS[t] ?? 1;
+      if (r < 0)
+        return t;
+    }
+    return CHALLENGE_TYPES[0];
+  }
   function sanitizeChallengeMode(m) {
-    return m === "rhythm" || m === "shogi" ? m : "random";
+    return CHALLENGE_TYPES.includes(m) ? m : "random";
   }
   function goalText(type, level, band) {
     if (type === "rhythm") {
       const [lo, hi] = rhythmHitRange(band);
       return `2小節（8拍）のリズムを、音と光で1回だけ聞かせます。そのあと1小節（4拍）のカウントインが入ってから、続く2小節でクリックの拍に合わせて大きなTAPボタンを叩き、同じリズムを再現してください。カウントイン中もボタンは押せて、最初の打点は少し早めでも判定の範囲内ならヒットになります。打点は${lo}〜${hi}か所。見逃しと余計なタップはミスになり、ミス3回で失敗です。`;
     }
+    if (type === "rush")
+      return `6×6の盤面で車をドラッグして前後にスライドさせ、赤い車（自車）を右端の出口まで到達させればクリアです。制限時間は帯により90〜120秒。「1手戻す」「最初から」ボタンで立て直せます。問題は全問ソルバー（BFS）で解けることと最短手数を確認済みのプールから出題します（易しい帯：最短7〜13手／普通帯：17〜26手／難しい帯：30手以上）。`;
+    if (type === "match")
+      return `マッチ棒で作られた等式を、ちょうど1本だけ動かして正しい式にすればクリアです。マッチをタップで選び、置きたい位置をタップして移動し、「決定」ボタンで判定します。間違えたらミス1回、ミス3回で失敗です（移動自体は決定前なら何度でもやり直せます）。問題は「1本の移動で正しくなる解がちょうど1通り」であることを全数チェックで検証済みです。`;
+    if (type === "lights")
+      return `グリッドのライトをタップすると、そのマスと上下左右が反転します。すべてのライトを消せばクリアです。制限時間は帯により90〜150秒で、盤面サイズが変わります（易しい帯：4×4／普通帯：5×5／難しい帯：6×6）。問題は全消灯状態から実際にタップして作るため、必ず解けます。`;
+    if (type === "river")
+      return `農夫がボートで荷物を全て対岸へ運べばクリアです。乗せるものをタップで選び（ボートの定員内）、「渡る」ボタンで移動します。農夫のいない岸で危険な組み合わせ（狼＋ヤギ、ヤギ＋キャベツなど）を残すとミス1回、ミス3回で失敗です。題材はすべて解の存在と最短渡航回数をBFSで検証済みです。`;
+    if (type === "hitblow")
+      return `秘密の数字（各桁すべて異なり、先頭は0ではありません）を推理するゲームです。数字キーパッドで推測を入力するたびに、ヒット（数字と位置が一致）とブロー（数字のみ一致）の数が表示され、履歴が残ります。回数制限内に正解すればクリアです（易しい帯：3桁・8回まで／普通帯：4桁・8回まで／難しい帯：4桁・6回まで）。時間制限はありません。`;
+    if (type === "stroke")
+      return `点と線でできた図形を、指を離さず、同じ線を2度なぞらずに、すべての線をなぞればクリアです。一度通った線は緑に変わります。行き詰まったら「1つ戻す」「やり直し」ボタンで再挑戦できます。制限時間は帯により90〜150秒。図形は一筆書き可能（奇数本の線が集まる点が0個）な形だけを生成しています。`;
     return `詰将棋は9×9のフル盤面で、毎手王手の3手詰めを解けば合格です。間違えた手は無効になり、その場で指し直せます（何度間違えてもOK・失敗無制限）。問題は全300問から出題します。通常帯（易しい〜やや難しい108問）と難しい帯（192問）があり、本番ゲートでは通常帯と難しい帯が半々の確率で選ばれます。5回ごとの節目回では難しい帯だけから出題されます。`;
   }
   function practiceLevelsFor(type) {
@@ -19147,9 +20046,21 @@ React keys must be passed directly to JSX without using spread:
       const [lo, hi] = rhythmHitRange(level);
       return `テンポ ♩=${rhythmBpm(level)}／打点 ${lo}〜${hi}か所`;
     }
-if (level === 2)
+    if (type === "rush")
+      return ["最短7〜13手／制限時間90秒", "最短17〜26手／制限時間105秒", "最短30手以上／制限時間120秒"][level - 1] ?? "";
+    if (type === "match")
+      return ["1桁同士の式", "答えや項が2桁になる式", "2〜3桁の式"][level - 1] ?? "";
+    if (type === "lights")
+      return ["4×4／制限時間90秒", "5×5／制限時間120秒", "6×6／制限時間150秒"][level - 1] ?? "";
+    if (type === "river")
+      return ["狼・ヤギ・キャベツ（定員1）／最短7回", "品数追加：花束・種袋つき（定員1）／最短11回", "7品・危険ペア5組（定員2）／最短9回"][level - 1] ?? "";
+    if (type === "hitblow")
+      return ["3桁・8回まで", "4桁・8回まで", "4桁・6回まで"][level - 1] ?? "";
+    if (type === "stroke")
+      return ["点6・線9本／制限時間90秒", "点7・線13本前後／制限時間120秒", "点9・線19本前後／制限時間150秒"][level - 1] ?? "";
+    if (type === "shogi" && level === 2)
       return "難しい帯（192問）から出題します";
-    if (level === 3)
+    if (type === "shogi" && level === 3)
       return "おまかせ：通常帯と難しい帯が半々の確率で出題されます";
     return "通常帯（易しい〜やや難しい108問）から出題します";
   }
@@ -19221,16 +20132,16 @@ if (level === 2)
       let type;
       if (gate === "practice") {
         type = practiceType ?? "rhythm";
-      } else if (settings.challengeMode === "rhythm" || settings.challengeMode === "shogi") {
+      } else if (CHALLENGE_TYPES.includes(settings.challengeMode)) {
         type = settings.challengeMode;
       } else {
-        type = Math.random() < 0.5 ? "rhythm" : "shogi";
+        type = pickGateType();
       }
       const level = gate === "launch" ? 1 + extensionsToday : gate === "extension" ? 2 + extensionsToday : 1;
       const openedToday = data?.todayPasses ?? 0;
       const upcomingCount = openedToday + 1;
       const isMilestone = gate !== "practice" && upcomingCount % 5 === 0;
-      const band = gate === "practice" ? level : isMilestone ? BAND_MAX[type] : type === "shogi" ? drawBandWithWeights([1, 2], [1, 1]) : drawWeightedBand(BAND_MAX[type]);
+      const band = gate === "practice" ? level : isMilestone ? BAND_MAX[type] : type === "shogi" ? drawBandWithWeights([1, 2], [1, 1]) : type === "rhythm" ? drawWeightedBand(BAND_MAX[type]) : 1 + Math.floor(Math.random() * BAND_MAX[type]);
       setFlow({ gate, type, level, band, phase: gate === "practice" ? "ready" : isMilestone ? "notice" : "playing", result: null, openedToday, upcomingCount, milestone: isMilestone });
       setScreen("challenge");
       setBanner(null);
@@ -19487,10 +20398,10 @@ if (level === 2)
                               border: "2px solid var(--border)",
                               background: "var(--surface)"
                             },
-                            children: flow.type === "shogi" ? ["通常帯", "難しい帯", "おまかせ"][lv - 1] : [
+                            children: flow.type === "shogi" ? ["通常帯", "難しい帯", "おまかせ"][lv - 1] : flow.type === "rhythm" ? [
                               "Lv.",
                               lv
-                            ]
+                            ] : ["易しい", "普通", "難しい"][lv - 1]
                           }, lv, true, undefined, this))
                         }, undefined, false, undefined, this),
                         /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
@@ -19865,7 +20776,7 @@ if (level === 2)
                 /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("br", {}, undefined, false, undefined, this),
                 "1セッション ",
                 data.settings.sessionMinutes,
-                "分 ／ チャレンジはリズムと詰将棋の2種類からランダムに出題されます。詰将棋は通常帯と難しい帯が半々の確率で選ばれ、5回ごとの節目回は最高レベル固定です"
+                "分 ／ チャレンジは全8種類（リズム／詰将棋／ラッシュアワー／マッチ棒／ライツアウト／川渡り／数字当て／一筆書き）からランダムに出題されます。5回ごとの節目回は最高レベル固定です"
               ]
             }, undefined, true, undefined, this)
           ]
@@ -19972,6 +20883,30 @@ if (level === 2)
                         /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
                           value: "shogi",
                           children: "詰将棋固定"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
+                          value: "rush",
+                          children: "ラッシュアワー固定"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
+                          value: "match",
+                          children: "マッチ棒固定"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
+                          value: "lights",
+                          children: "ライツアウト固定"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
+                          value: "river",
+                          children: "川渡り固定"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
+                          value: "hitblow",
+                          children: "数字当て固定"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("option", {
+                          value: "stroke",
+                          children: "一筆書き固定"
                         }, undefined, false, undefined, this)
                       ]
                     }, undefined, true, undefined, this)
