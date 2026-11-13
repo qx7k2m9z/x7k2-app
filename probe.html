@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Probe</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background:#111; color:#fff; margin:0; padding:24px; }
+  h1 { font-size:20px; }
+  button { display:block; width:100%; padding:20px; font-size:20px; margin:16px 0; border-radius:12px; border:0; background:#1d9bf0; color:#fff; }
+  #log { font-size:15px; line-height:1.7; white-space:pre-wrap; word-break:break-all; }
+  a { color:#1d9bf0; font-size:18px; }
+</style>
+</head>
+<body>
+<h1>動作テストページ</h1>
+<button id="tapBtn">タップしてテスト（回数: 0）</button>
+<button id="confirmBtn">confirm テスト</button>
+<div id="log"></div>
+<p><a href="https://example.com">リンクのテスト（example.com）</a></p>
+<script>
+  var logEl = document.getElementById('log');
+  function log(s){ logEl.textContent += s + '\n'; }
+  log('JS: 実行されています');
+  log('UA: ' + navigator.userAgent);
+  try {
+    localStorage.setItem('probe', 'ok');
+    log('localStorage: ' + (localStorage.getItem('probe') === 'ok' ? 'OK' : 'NG'));
+  } catch (e) {
+    log('localStorage: エラー ' + e.name + ' ' + e.message);
+  }
+  var n = 0;
+  document.getElementById('tapBtn').addEventListener('click', function(){
+    n++;
+    this.textContent = 'タップしてテスト（回数: ' + n + '）';
+    log('ボタンが押されました: ' + n + '回目');
+  });
+  document.getElementById('confirmBtn').addEventListener('click', function(){
+    var r = confirm('OKを押してください');
+    log('confirm の結果: ' + r);
+  });
+</script>
+</body>
+</html>
