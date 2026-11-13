@@ -21748,7 +21748,7 @@ React keys must be passed directly to JSX without using spread:
                     cid: flow.cid
                   }, `${flow.type}-${flow.level}-${flow.band}`, false, undefined, this)
                 }, undefined, false, undefined, this),
-                flow.phase === "playing" && flow.gate !== "practice" && !flow.rerolled && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                flow.phase === "playing" && flow.gate !== "practice" && !flow.rerolled && !CHALLENGE_TYPES.includes(settings.challengeMode) && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
                   className: "mt-3 text-center",
                   children: /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
                     type: "button",
