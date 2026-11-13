@@ -18416,11 +18416,19 @@ React keys must be passed directly to JSX without using spread:
   var patternHitSound = (e) => toneSound(e);
   var tapOkSound = (e) => snareSound(e);
   var tapBadSound = (e) => tomSound(e, 95);
-  function RhythmChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
+  function RhythmChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose, cid }) {
     const bpm = rhythmBpm(band);
     const tolerance = band >= 6 ? 0.55 : RHYTHM_TOLERANCE;
     const stepMs = 60000 / bpm / 2;
-    const pattern = import_react3.useMemo(() => generatePattern(band), [band]);
+    const savedRhythm = import_react3.useMemo(() => loadGameState("rhythm", cid, band), [cid, band]);
+    const pattern = import_react3.useMemo(() => {
+      if (savedRhythm && Array.isArray(savedRhythm.pattern) && savedRhythm.pattern.length === RHYTHM_STEPS)
+        return savedRhythm.pattern.map((v) => v === true);
+      return generatePattern(band);
+    }, [band]);
+    import_react3.useEffect(() => {
+      saveGameState("rhythm", cid, band, { pattern });
+    }, [cid, band, pattern]);
     const hitCount = import_react3.useMemo(() => pattern.filter(Boolean).length, [pattern]);
     const listenSteps = RHYTHM_STEPS;
     const [step, setStep] = import_react3.useState(-1);
@@ -18455,6 +18463,8 @@ React keys must be passed directly to JSX without using spread:
     const finishRefGame = import_react3.useRef(finishGame);
     finishRefGame.current = finishGame;
     import_react3.useEffect(() => {
+      if (failRevealSeq)
+        return;
       const engine = createAudioEngine();
       engineRef.current = engine;
       if (engine)
@@ -19561,8 +19571,11 @@ React keys must be passed directly to JSX without using spread:
     }
     return [lo, hi];
   }
-  function RushChallenge({ band, onFinish, gate, milestoneMax, failRevealSeq, onAnswerClose }) {
+  function RushChallenge({ band, onFinish, gate, milestoneMax, failRevealSeq, onAnswerClose, cid }) {
+    const savedRush = import_react3.useMemo(() => loadGameState("rush", cid, band), [cid, band]);
     const puzzle = import_react3.useMemo(() => {
+      if (savedRush && Array.isArray(savedRush.vehicles) && savedRush.vehicles.length > 0 && typeof savedRush.minMoves === "number")
+        return { vehicles: savedRush.vehicles, minMoves: savedRush.minMoves };
       const pool = gate !== "practice" && !milestoneMax ? [...RUSH_POOL[1], ...RUSH_POOL[2], ...RUSH_POOL[3]] : RUSH_POOL[band] && RUSH_POOL[band].length ? RUSH_POOL[band] : RUSH_POOL[1];
       const p = pool[Math.floor(Math.random() * pool.length)];
       return {
@@ -19570,6 +19583,9 @@ React keys must be passed directly to JSX without using spread:
         minMoves: p.m
       };
     }, [band]);
+    import_react3.useEffect(() => {
+      saveGameState("rush", cid, band, { vehicles: puzzle.vehicles, minMoves: puzzle.minMoves });
+    }, [cid, band, puzzle]);
     const [vehicles, setVehicles] = import_react3.useState(() => puzzle.vehicles);
     const [history, setHistory] = import_react3.useState([]);
     const [drag, setDrag] = import_react3.useState(null);
@@ -20089,15 +20105,21 @@ React keys must be passed directly to JSX without using spread:
     }
     return nb;
   }
-  function LightsChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
+  function LightsChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose, cid }) {
     const conf = LIGHTS_CONF[band] || LIGHTS_CONF[1];
+    const savedLights = import_react3.useMemo(() => loadGameState("lights", cid, band), [cid, band]);
     const puzzle = import_react3.useMemo(() => {
+      if (savedLights && Array.isArray(savedLights.board) && savedLights.board.length === conf.size * conf.size && Array.isArray(savedLights.sol))
+        return { board: savedLights.board.map((v) => v === true), sol: savedLights.sol };
       let board = Array(conf.size * conf.size).fill(false);
       const cells = shuffle(Array.from({ length: conf.size * conf.size }, (_, i) => i)).slice(0, conf.presses);
       for (const c of cells)
         board = lightsPress(board, conf.size, c);
       return { board, sol: cells };
     }, [band]);
+    import_react3.useEffect(() => {
+      saveGameState("lights", cid, band, { board: puzzle.board, sol: puzzle.sol });
+    }, [cid, band, puzzle]);
     const initial = puzzle.board;
     const [board, setBoard] = import_react3.useState(() => initial);
     const [taps, setTaps] = import_react3.useState(0);
@@ -20298,13 +20320,19 @@ React keys must be passed directly to JSX without using spread:
 
   // ---------- Hit & Blow ----------
   var HITBLOW_CONF = { 1: { len: 3, max: 8 }, 2: { len: 4, max: 8 }, 3: { len: 4, max: 7 } };
-  function HitBlowChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
+  function HitBlowChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose, cid }) {
     const conf = HITBLOW_CONF[band] || HITBLOW_CONF[1];
+    const savedHitBlow = import_react3.useMemo(() => loadGameState("hitblow", cid, band), [cid, band]);
     const secret = import_react3.useMemo(() => {
+      if (savedHitBlow && Array.isArray(savedHitBlow.secret) && savedHitBlow.secret.length === conf.len)
+        return savedHitBlow.secret;
       const first = 1 + Math.floor(Math.random() * 9);
       const rest = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter((d) => d !== first)).slice(0, conf.len - 1);
       return [first, ...rest];
     }, [band]);
+    import_react3.useEffect(() => {
+      saveGameState("hitblow", cid, band, { secret });
+    }, [cid, band, secret]);
     const [current, setCurrent] = import_react3.useState([]);
     const [history, setHistory] = import_react3.useState([]);
     const [msg, setMsg] = import_react3.useState("数字を入力して「判定」を押そう");
@@ -20451,9 +20479,17 @@ React keys must be passed directly to JSX without using spread:
     }
     return { pts, edges };
   }
-  function StrokeChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
+  function StrokeChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose, cid }) {
     const conf = STROKE_CONF[band] || STROKE_CONF[1];
-    const fig = import_react3.useMemo(() => strokeGenerateFig(conf.n, conf.extras), [band]);
+    const savedStroke = import_react3.useMemo(() => loadGameState("stroke", cid, band), [cid, band]);
+    const fig = import_react3.useMemo(() => {
+      if (savedStroke && Array.isArray(savedStroke.pts) && savedStroke.pts.length === conf.n && Array.isArray(savedStroke.edges) && savedStroke.edges.length > 0)
+        return { pts: savedStroke.pts, edges: savedStroke.edges };
+      return strokeGenerateFig(conf.n, conf.extras);
+    }, [band]);
+    import_react3.useEffect(() => {
+      saveGameState("stroke", cid, band, { pts: fig.pts, edges: fig.edges });
+    }, [cid, band, fig]);
     const [used, setUsed] = import_react3.useState(() => []);
     const [nodeStack, setNodeStack] = import_react3.useState(() => []);
     const [cleared, setCleared] = import_react3.useState(false);
@@ -20670,10 +20706,18 @@ React keys must be passed directly to JSX without using spread:
     }
     return { ends, sol };
   }
-  function NumLinkChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
+  function NumLinkChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose, cid }) {
     const conf = NUMLINK_CONF[band] || NUMLINK_CONF[1];
     const size = conf.size;
-    const puzzle = import_react3.useMemo(() => nlGenerate(size, conf.pairs), [band]);
+    const savedNumLink = import_react3.useMemo(() => loadGameState("numlink", cid, band), [cid, band]);
+    const puzzle = import_react3.useMemo(() => {
+      if (savedNumLink && savedNumLink.ends && typeof savedNumLink.ends === "object" && Array.isArray(savedNumLink.sol) && savedNumLink.sol.length === conf.pairs)
+        return { ends: savedNumLink.ends, sol: savedNumLink.sol };
+      return nlGenerate(size, conf.pairs);
+    }, [band]);
+    import_react3.useEffect(() => {
+      saveGameState("numlink", cid, band, { ends: puzzle.ends, sol: puzzle.sol });
+    }, [cid, band, puzzle]);
     const pathsRef = import_react3.useRef(null);
     if (pathsRef.current === null)
       pathsRef.current = Array.from({ length: conf.pairs }, () => []);
@@ -20899,10 +20943,18 @@ React keys must be passed directly to JSX without using spread:
       return slideGenerate(size, moves);
     return { tiles, sol: blankTrail.slice().reverse() };
   }
-  function SlideChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose }) {
+  function SlideChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose, cid }) {
     const conf = SLIDE_CONF[band] || SLIDE_CONF[1];
     const size = conf.size, n = size * size;
-    const puzzle = import_react3.useMemo(() => slideGenerate(size, conf.moves), [band]);
+    const savedSlide = import_react3.useMemo(() => loadGameState("slide", cid, band), [cid, band]);
+    const puzzle = import_react3.useMemo(() => {
+      if (savedSlide && Array.isArray(savedSlide.tiles) && savedSlide.tiles.length === n && Array.isArray(savedSlide.sol))
+        return { tiles: savedSlide.tiles, sol: savedSlide.sol };
+      return slideGenerate(size, conf.moves);
+    }, [band]);
+    import_react3.useEffect(() => {
+      saveGameState("slide", cid, band, { tiles: puzzle.tiles, sol: puzzle.sol });
+    }, [cid, band, puzzle]);
     const initial = puzzle.tiles;
     const [tiles, setTiles] = import_react3.useState(() => initial);
     const [moves, setMoves] = import_react3.useState(0);
@@ -21157,7 +21209,8 @@ React keys must be passed directly to JSX without using spread:
         gate,
         milestoneMax,
         failRevealSeq,
-        onAnswerClose
+        onAnswerClose,
+        cid
       }, undefined, false, undefined, this);
     if (type === "match")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(MatchChallenge, {
@@ -21174,7 +21227,8 @@ React keys must be passed directly to JSX without using spread:
         onFinish,
         gate,
         failRevealSeq,
-        onAnswerClose
+        onAnswerClose,
+        cid
       }, undefined, false, undefined, this);
     if (type === "river")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(RiverChallenge, {
@@ -21190,7 +21244,8 @@ React keys must be passed directly to JSX without using spread:
         onFinish,
         gate,
         failRevealSeq,
-        onAnswerClose
+        onAnswerClose,
+        cid
       }, undefined, false, undefined, this);
     if (type === "stroke")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(StrokeChallenge, {
@@ -21198,7 +21253,8 @@ React keys must be passed directly to JSX without using spread:
         onFinish,
         gate,
         failRevealSeq,
-        onAnswerClose
+        onAnswerClose,
+        cid
       }, undefined, false, undefined, this);
     if (type === "numlink")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(NumLinkChallenge, {
@@ -21206,7 +21262,8 @@ React keys must be passed directly to JSX without using spread:
         onFinish,
         gate,
         failRevealSeq,
-        onAnswerClose
+        onAnswerClose,
+        cid
       }, undefined, false, undefined, this);
     if (type === "slide")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(SlideChallenge, {
@@ -21214,7 +21271,8 @@ React keys must be passed directly to JSX without using spread:
         onFinish,
         gate,
         failRevealSeq,
-        onAnswerClose
+        onAnswerClose,
+        cid
       }, undefined, false, undefined, this);
     if (type === "hanoi")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(HanoiChallenge, {
@@ -21230,7 +21288,8 @@ React keys must be passed directly to JSX without using spread:
       onFinish,
       gate,
       failRevealSeq,
-      onAnswerClose
+      onAnswerClose,
+      cid
     }, undefined, false, undefined, this);
   }
 
@@ -21377,6 +21436,26 @@ React keys must be passed directly to JSX without using spread:
       localStorage.setItem(GAME_STORE_PREFIX + kind, JSON.stringify({ cid, band, state }));
     } catch {}
   }
+  var FAILED_STORE_KEY = "gatekeeper-home-failed-v1";
+  function loadFailedRecord() {
+    try {
+      const raw = localStorage.getItem(FAILED_STORE_KEY);
+      if (!raw)
+        return null;
+      const v = JSON.parse(raw);
+      if (v && typeof v.cid === "string" && typeof v.type === "string" && typeof v.band === "number" && typeof v.level === "number" && typeof v.gate === "string")
+        return v;
+    } catch {}
+    return null;
+  }
+  function saveFailedRecord(v) {
+    try {
+      if (v)
+        localStorage.setItem(FAILED_STORE_KEY, JSON.stringify(v));
+      else
+        localStorage.removeItem(FAILED_STORE_KEY);
+    } catch {}
+  }
   function App() {
     const queryClient = useQueryClient();
     const today = import_react4.useMemo(() => localDay(), []);
@@ -21390,6 +21469,7 @@ React keys must be passed directly to JSX without using spread:
     const [failAnswerSeq, setFailAnswerSeq] = import_react4.useState(0);
     const [showFailAnswer, setShowFailAnswer] = import_react4.useState(false);
     const [rerollConfirm, setRerollConfirm] = import_react4.useState(false);
+    const [cdFail, setCdFail] = import_react4.useState(() => loadFailedRecord());
     const [nowMs, setNowMs] = import_react4.useState(() => Date.now());
     const gateFiredForRef = import_react4.useRef(null);
     const cooldownDoneForRef = import_react4.useRef(null);
@@ -21436,6 +21516,8 @@ React keys must be passed directly to JSX without using spread:
       setFailAnswerSeq(0);
       setShowFailAnswer(false);
       setRerollConfirm(false);
+      setCdFail(null);
+      saveFailedRecord(null);
     };
     const rerollChallenge = () => {
       setRerollConfirm(false);
@@ -21454,12 +21536,12 @@ React keys must be passed directly to JSX without using spread:
     const sessionLeft = Math.max(0, sessionTotal - sessionElapsed);
     const cooldownLeft = ext.cooldownUntil ? Math.max(0, Math.ceil((new Date(ext.cooldownUntil).getTime() - nowMs) / 1000)) : 0;
     import_react4.useEffect(() => {
-      if (screen !== "session" && screen !== "cooldown")
+      if (screen !== "session" && screen !== "cooldown" && !(screen === "challenge" && flow?.phase === "done"))
         return;
       setNowMs(Date.now());
       const t = window.setInterval(() => setNowMs(Date.now()), 1000);
       return () => window.clearInterval(t);
-    }, [screen]);
+    }, [screen, flow?.phase]);
     import_react4.useEffect(() => {
       const onVisible = () => {
         if (document.visibilityState === "visible") {
@@ -21523,6 +21605,8 @@ React keys must be passed directly to JSX without using spread:
         return;
       cooldownDoneForRef.current = until;
       clearCooldownMut.mutate();
+      setCdFail(null);
+      saveFailedRecord(null);
       setScreen("home");
       setBanner("クールダウン終了。またチャレンジできます。");
     }, [screen, cooldownLeft, data?.session.cooldownUntil]);
@@ -21534,6 +21618,8 @@ React keys must be passed directly to JSX without using spread:
     }, [screen, flow]);
     const onChallengeFinish = (result) => {
       setRerollConfirm(false);
+      if (flow && flow.phase === "done")
+        return;
       setFlow((f) => f ? { ...f, phase: "done", result } : f);
       if (!flow || flow.gate === "practice")
         return;
@@ -21545,6 +21631,21 @@ React keys must be passed directly to JSX without using spread:
         day: today,
         clientEventId: newEventId()
       });
+      if (!result.passed) {
+        const rec = { type: flow.type, level: flow.level, band: flow.band, gate: flow.gate, milestone: !!flow.milestone, cid: flow.cid };
+        setCdFail(rec);
+        saveFailedRecord(rec);
+        beginCooldownMut.mutate();
+      }
+    };
+    const openCooldownAnswer = () => {
+      if (!cdFail)
+        return;
+      setFlow({ gate: cdFail.gate, type: cdFail.type, level: cdFail.level, band: cdFail.band, phase: "done", result: { passed: false, score: 0 }, openedToday: 0, upcomingCount: 0, milestone: cdFail.milestone, rerolled: true, cid: cdFail.cid });
+      setFailAnswerSeq((s) => s + 1);
+      setShowFailAnswer(true);
+      setRerollConfirm(false);
+      setScreen("challenge");
     };
     const endSessionEarly = () => {
       const bonus = 30 + Math.floor(sessionLeft / 10);
@@ -21810,8 +21911,16 @@ React keys must be passed directly to JSX without using spread:
                       className: "mt-2 text-sm text-[var(--dim)]",
                       children: [
                         flow.gate === "practice" && (flow.result.passed ? "本番でもこの調子でいきましょう。" : "練習なので何度でも挑戦できます。"),
-                        flow.gate === "launch" && (flow.result.passed ? `+${passPoints("launch", flow.level)}pt ゲット。${settings.sessionMinutes}分だけXを開けます。` : `クリアできないとセッションは始まりません。${settings.cooldownMinutes}分のクールダウンに入ります。`),
-                        flow.gate === "extension" && (flow.result.passed ? `+${passPoints("extension", flow.level)}pt ゲット。${settings.sessionMinutes}分延長します。次回はもっと難しくなります。` : `延長ならず。${settings.cooldownMinutes}分のクールダウンに入ります。`)
+                        flow.gate === "launch" && (flow.result.passed ? `+${passPoints("launch", flow.level)}pt ゲット。${settings.sessionMinutes}分だけXを開けます。` : `クリアできないとセッションは始まりません。${settings.cooldownMinutes}分のクールダウンが始まりました。`),
+                        flow.gate === "extension" && (flow.result.passed ? `+${passPoints("extension", flow.level)}pt ゲット。${settings.sessionMinutes}分延長します。次回はもっと難しくなります。` : `延長ならず。${settings.cooldownMinutes}分のクールダウンが始まりました。`)
+                      ]
+                    }, undefined, true, undefined, this),
+                    !flow.result.passed && flow.gate !== "practice" && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
+                      className: "font-display mt-4 text-xl font-extrabold tabular-nums",
+                      style: { color: "#f4212e" },
+                      children: [
+                        "クールダウン中 残り ",
+                        fmtClock(ext.cooldownUntil ? cooldownLeft : settings.cooldownMinutes * 60)
                       ]
                     }, undefined, true, undefined, this),
                     !flow.result.passed && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
@@ -21841,12 +21950,9 @@ React keys must be passed directly to JSX without using spread:
                       ]
                     }, undefined, true, undefined, this) : flow.gate !== "practice" ? /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
                       type: "button",
-                      onClick: () => {
-                        beginCooldownMut.mutate();
-                        setScreen("cooldown");
-                      },
+                      onClick: () => setScreen("cooldown"),
                       className: "font-display mt-5 w-full rounded-full bg-[#f4212e] py-4 text-lg font-extrabold text-white",
-                      children: `クールダウンに入る（${settings.cooldownMinutes}分）`
+                      children: "クールダウン画面へ"
                     }, undefined, false, undefined, this) : /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
                       type: "button",
                       onClick: () => setScreen("home"),
@@ -21982,7 +22088,18 @@ React keys must be passed directly to JSX without using spread:
                 /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
                   className: "mt-2 text-xs text-[var(--dim)]",
                   children: "終わるまで再挑戦できません"
-                }, undefined, false, undefined, this)
+                }, undefined, false, undefined, this),
+                cdFail && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
+                  type: "button",
+                  onClick: openCooldownAnswer,
+                  className: "font-display mx-auto mt-8 block w-full rounded-full py-3.5 text-base font-extrabold",
+                  style: { border: "2px solid var(--border)", background: "var(--surface)", color: "var(--text)", maxWidth: 340 },
+                  children: [
+                    "さっきの問題の答えを見る（",
+                    CHALLENGE_LABEL[cdFail.type] ?? "",
+                    "）"
+                  ]
+                }, undefined, true, undefined, this)
               ]
             }, undefined, true, undefined, this)
           ]
