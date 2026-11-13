@@ -21389,6 +21389,7 @@ React keys must be passed directly to JSX without using spread:
     const [banner, setBanner] = import_react4.useState(null);
     const [failAnswerSeq, setFailAnswerSeq] = import_react4.useState(0);
     const [showFailAnswer, setShowFailAnswer] = import_react4.useState(false);
+    const [rerollConfirm, setRerollConfirm] = import_react4.useState(false);
     const [nowMs, setNowMs] = import_react4.useState(() => Date.now());
     const gateFiredForRef = import_react4.useRef(null);
     const cooldownDoneForRef = import_react4.useRef(null);
@@ -21429,9 +21430,21 @@ React keys must be passed directly to JSX without using spread:
       const upcomingCount = openedToday + 1;
       const isMilestone = gate !== "practice" && upcomingCount % 5 === 0;
       const band = gate === "practice" ? level : isMilestone ? BAND_MAX[type] : 1 + Math.floor(Math.random() * BAND_MAX[type]);
-      setFlow({ gate, type, level, band, phase: gate === "practice" ? "ready" : isMilestone ? "notice" : "playing", result: null, openedToday, upcomingCount, milestone: isMilestone, cid: newEventId() });
+      setFlow({ gate, type, level, band, phase: gate === "practice" ? "ready" : isMilestone ? "notice" : "playing", result: null, openedToday, upcomingCount, milestone: isMilestone, rerolled: false, cid: newEventId() });
       setScreen("challenge");
       setBanner(null);
+      setFailAnswerSeq(0);
+      setShowFailAnswer(false);
+      setRerollConfirm(false);
+    };
+    const rerollChallenge = () => {
+      setRerollConfirm(false);
+      if (!flow || flow.gate === "practice" || flow.phase !== "playing" || flow.rerolled)
+        return;
+      const others = CHALLENGE_TYPES.filter((t) => t !== flow.type);
+      const type = others[Math.floor(Math.random() * others.length)];
+      const band = flow.milestone ? BAND_MAX[type] : 1 + Math.floor(Math.random() * BAND_MAX[type]);
+      setFlow({ ...flow, type, band, phase: "playing", result: null, rerolled: true, cid: newEventId() });
       setFailAnswerSeq(0);
       setShowFailAnswer(false);
     };
@@ -21520,6 +21533,7 @@ React keys must be passed directly to JSX without using spread:
         saveFlowState(null);
     }, [screen, flow]);
     const onChallengeFinish = (result) => {
+      setRerollConfirm(false);
       setFlow((f) => f ? { ...f, phase: "done", result } : f);
       if (!flow || flow.gate === "practice")
         return;
@@ -21733,6 +21747,56 @@ React keys must be passed directly to JSX without using spread:
                     onAnswerClose: () => setShowFailAnswer(false),
                     cid: flow.cid
                   }, `${flow.type}-${flow.level}-${flow.band}`, false, undefined, this)
+                }, undefined, false, undefined, this),
+                flow.phase === "playing" && flow.gate !== "practice" && !flow.rerolled && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                  className: "mt-3 text-center",
+                  children: /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
+                    type: "button",
+                    onClick: () => setRerollConfirm(true),
+                    className: "font-display rounded-full px-4 py-2.5 text-sm font-extrabold",
+                    style: { border: "2px solid var(--border)", background: "var(--surface)", color: "var(--dim)" },
+                    children: "別のゲームに変える（あと1回）"
+                  }, undefined, false, undefined, this)
+                }, undefined, false, undefined, this),
+                rerollConfirm && flow.phase === "playing" && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                  className: "fixed inset-0 flex items-center justify-center px-4",
+                  style: { background: "rgba(0,0,0,0.55)", zIndex: 50 },
+                  role: "dialog",
+                  "aria-modal": "true",
+                  "aria-label": "別のゲームに変える確認",
+                  children: /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                    className: "w-full rounded-2xl p-5 shadow-lg",
+                    style: { background: "var(--surface)", maxWidth: 380 },
+                    children: [
+                      /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
+                        className: "font-display text-lg font-extrabold",
+                        children: "別のゲームに変える"
+                      }, undefined, false, undefined, this),
+                      /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
+                        className: "mt-2 text-sm leading-relaxed",
+                        children: "今の進捗は破棄されます。別のゲームに変えますか？"
+                      }, undefined, false, undefined, this),
+                      /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                        className: "mt-4 flex gap-2",
+                        children: [
+                          /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
+                            type: "button",
+                            onClick: rerollChallenge,
+                            className: "font-display flex-1 rounded-full py-3 text-base font-extrabold text-white",
+                            style: { background: "var(--accent)" },
+                            children: "変える"
+                          }, undefined, false, undefined, this),
+                          /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
+                            type: "button",
+                            onClick: () => setRerollConfirm(false),
+                            className: "font-display flex-1 rounded-full py-3 text-base font-extrabold",
+                            style: { border: "2px solid var(--border)", background: "var(--surface)" },
+                            children: "やめる"
+                          }, undefined, false, undefined, this)
+                        ]
+                      }, undefined, true, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this)
                 }, undefined, false, undefined, this),
                 flow.phase === "done" && flow.result && !showFailAnswer && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
                   className: "mt-5 text-center",
