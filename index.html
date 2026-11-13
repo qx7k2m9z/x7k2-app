@@ -23,6 +23,30 @@
 html, body { margin: 0; padding: 0; background: var(--bg); overscroll-behavior: none; }
 
     </style>
+    <script>
+      // Embedded-WKWebView compatibility (e.g. Scriptable): there, taps are not
+      // delivered to content inside the fixed full-screen internal scroller
+      // ([data-generated-space-root] { position:fixed; overflow:auto }), so the
+      // app renders but no button reacts. In that environment only, switch the
+      // shell to normal document flow (the layout plain pages use, which works).
+      // Detection matches the confirmed failing UA: AppleWebKit + Mobile with
+      // no "Safari/" token. Safari (browser and home-screen standalone) carries
+      // the Safari token and keeps the original shell untouched.
+      (function () {
+        try {
+          if (window !== window.top)
+            return;
+          var ua = navigator.userAgent || "";
+          var isEmbeddedIOSWebView = ua.indexOf("AppleWebKit") !== -1 && ua.indexOf("Mobile/") !== -1 && ua.indexOf("Safari/") === -1;
+          if (!isEmbeddedIOSWebView)
+            return;
+          var st = document.createElement("style");
+          st.setAttribute("data-webview-compat", "1");
+          st.textContent = "[data-generated-space-root]{position:static !important;inset:auto !important;overflow:visible !important;height:auto !important;min-height:100%}" + ".hatch-space-root[data-hatch-space-root]{min-height:100dvh}";
+          document.head.appendChild(st);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div data-generated-space-root="" data-generated-space-slug="shi-isugiyi-zhi-apuri-homuhua-mian-ban">
