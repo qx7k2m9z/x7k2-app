@@ -47,6 +47,27 @@ html, body { margin: 0; padding: 0; background: var(--bg); overscroll-behavior: 
         } catch (e) {}
       })();
     </script>
+    <script>
+      // Post-pass "open X" destination switch for embedded WebViews
+      // (Scriptable): there, the host script intercepts navigation to a
+      // signal URL and launches the Shortcuts timer flow instead of opening
+      // X directly. Detection uses the same UA rule as the compat above
+      // (AppleWebKit + Mobile, no "Safari/" token) but intentionally has no
+      // window.top check: the app is also used inside the probe3 wrapper's
+      // iframe, where the UA rule must still apply. Normal environments
+      // (Safari, home-screen standalone) keep https://x.com unchanged.
+      (function () {
+        try {
+          var ua = navigator.userAgent || "";
+          var isEmbeddedWebView = ua.indexOf("Safari/") === -1 && ua.indexOf("Mobile") !== -1 && ua.indexOf("AppleWebKit") !== -1;
+          window.__isEmbeddedWebView = isEmbeddedWebView;
+          window.__xOpenHref = isEmbeddedWebView ? "https://qx7k2m9z.github.io/x7k2-app/go-x-signal" : "https://x.com";
+        } catch (e) {
+          window.__isEmbeddedWebView = false;
+          window.__xOpenHref = "https://x.com";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div data-generated-space-root="" data-generated-space-slug="shi-isugiyi-zhi-apuri-homuhua-mian-ban">
@@ -21960,8 +21981,8 @@ React keys must be passed directly to JSX without using spread:
                     flow.result.passed && flow.gate !== "practice" ? /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
                       children: [
                         /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("a", {
-                          href: "https://x.com",
-                          target: "_blank",
+                          href: typeof window !== "undefined" && window.__xOpenHref ? window.__xOpenHref : "https://x.com",
+                          target: typeof window !== "undefined" && window.__isEmbeddedWebView ? undefined : "_blank",
                           rel: "noopener noreferrer",
                           onClick: () => beginExternal.mutate(),
                           className: "font-display mt-5 block w-full rounded-full bg-[var(--accent)] py-4 text-center text-lg font-extrabold text-white",
