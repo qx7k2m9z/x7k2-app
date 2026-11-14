@@ -17274,11 +17274,12 @@ React keys must be passed directly to JSX without using spread:
   var STORE_KEY = "gatekeeper-home-v1";
   function defaultStore() {
     return {
-      settings: { sessionMinutes: 5, cooldownMinutes: 3, challengeMode: "random" },
+      settings: { sessionMinutes: 3, cooldownMinutes: 3, challengeMode: "random" },
       session: { startedAt: null, limitMinutes: null, cooldownUntil: null },
       events: [],
       nextId: 1,
-      cooldownDefaultV3: true
+      cooldownDefaultV3: true,
+      sessionDefaultV3: true
     };
   }
   function load() {
@@ -17287,11 +17288,23 @@ React keys must be passed directly to JSX without using spread:
       if (raw) {
         const p = JSON.parse(raw);
         if (p && p.settings && p.session && Array.isArray(p.events) && typeof p.nextId === "number") {
+          let dirty = false;
           if (p.settings.cooldownMinutes !== 3 || p.cooldownDefaultV3 !== true) {
             p.settings.cooldownMinutes = 3;
             p.cooldownDefaultV3 = true;
-            save(p);
+            dirty = true;
           }
+          if (p.sessionDefaultV3 !== true) {
+            if (p.settings.sessionMinutes === 5) {
+              p.settings.sessionMinutes = 3;
+              if (p.session && p.session.limitMinutes === 5)
+                p.session.limitMinutes = 3;
+            }
+            p.sessionDefaultV3 = true;
+            dirty = true;
+          }
+          if (dirty)
+            save(p);
           return p;
         }
       }
@@ -21539,7 +21552,7 @@ React keys must be passed directly to JSX without using spread:
       onSuccess: () => queryClient.invalidateQueries({ queryKey: ["state"] })
     });
     const data = state.data;
-    const settings = data?.settings ?? { sessionMinutes: 5, cooldownMinutes: 3, challengeMode: "random" };
+    const settings = data?.settings ?? { sessionMinutes: 3, cooldownMinutes: 3, challengeMode: "random" };
     const extensionsToday = data?.todayExtensions ?? 0;
     const startGate = (gate, practiceType) => {
       let type;
@@ -22570,7 +22583,7 @@ React keys must be passed directly to JSX without using spread:
           children: [
             /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("h2", {
               className: "font-display text-lg font-extrabold",
-              children: "併用ガイド：5分タイマーとスクリーンタイム"
+              children: "併用ガイド：3分タイマーとスクリーンタイム"
             }, undefined, false, undefined, this),
             /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
               className: "mt-2 text-sm leading-relaxed",
@@ -22578,7 +22591,7 @@ React keys must be passed directly to JSX without using spread:
             }, undefined, false, undefined, this),
             /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("h3", {
               className: "mt-4 text-sm font-bold",
-              children: "① ショートカットAppで5分タイマー"
+              children: "① ショートカットAppで3分タイマー"
             }, undefined, false, undefined, this),
             /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("ol", {
               className: "mt-1.5 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed",
@@ -22587,7 +22600,7 @@ React keys must be passed directly to JSX without using spread:
                   children: "「ショートカット」Appを開き、右上の「＋」で新規ショートカットを作ります"
                 }, undefined, false, undefined, this),
                 /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("li", {
-                  children: "アクション検索で「タイマーを開始」を追加し、時間を5分に設定します"
+                  children: "アクション検索で「タイマーを開始」を追加し、時間を3分に設定します"
                 }, undefined, false, undefined, this),
                 /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("li", {
                   children: "ショートカット名をタップして「ホーム画面に追加」をすると、ワンタップでタイマーをかけられます。Xを開く前に押すのがおすすめです"
