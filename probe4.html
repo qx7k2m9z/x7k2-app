@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Probe4</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background:#111; color:#fff; margin:0; padding:24px; }
+  h1 { font-size:20px; }
+  p { font-size:15px; line-height:1.7; }
+  a.btn, button { display:block; width:100%; padding:20px; font-size:20px; margin:16px 0; border-radius:12px; border:0; background:#1d9bf0; color:#fff; text-align:center; text-decoration:none; box-sizing:border-box; }
+</style>
+</head>
+<body>
+<h1>ショートカット起動テスト</h1>
+<p>下のボタンを押して、ショートカットアプリが開く（「Twitter」が実行中になる）か確認してください。今の「Twitter」はタイマー専用なので、X は開かなくて大丈夫です。止めるときはショートカット側の停止ボタンで止めてください。</p>
+<a class="btn" href="shortcuts://run-shortcut?name=Twitter">リンクでショートカット起動</a>
+<button id="jsBtn">ボタンでショートカット起動</button>
+<script>
+  document.getElementById('jsBtn').addEventListener('click', function(){
+    location.href = 'shortcuts://run-shortcut?name=Twitter';
+  });
+</script>
+</body>
+</html>
