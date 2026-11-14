@@ -17274,11 +17274,11 @@ React keys must be passed directly to JSX without using spread:
   var STORE_KEY = "gatekeeper-home-v1";
   function defaultStore() {
     return {
-      settings: { sessionMinutes: 5, cooldownMinutes: 5, challengeMode: "random" },
+      settings: { sessionMinutes: 5, cooldownMinutes: 3, challengeMode: "random" },
       session: { startedAt: null, limitMinutes: null, cooldownUntil: null },
       events: [],
       nextId: 1,
-      cooldownDefaultV2: true
+      cooldownDefaultV3: true
     };
   }
   function load() {
@@ -17287,9 +17287,9 @@ React keys must be passed directly to JSX without using spread:
       if (raw) {
         const p = JSON.parse(raw);
         if (p && p.settings && p.session && Array.isArray(p.events) && typeof p.nextId === "number") {
-          if (p.settings.cooldownMinutes !== 5 || p.cooldownDefaultV2 !== true) {
-            p.settings.cooldownMinutes = 5;
-            p.cooldownDefaultV2 = true;
+          if (p.settings.cooldownMinutes !== 3 || p.cooldownDefaultV3 !== true) {
+            p.settings.cooldownMinutes = 3;
+            p.cooldownDefaultV3 = true;
             save(p);
           }
           return p;
@@ -17330,7 +17330,7 @@ React keys must be passed directly to JSX without using spread:
       }
     }
     return {
-      settings: { ...store.settings, cooldownMinutes: 5 },
+      settings: { ...store.settings, cooldownMinutes: 3 },
       session: { ...store.session },
       totalPoints,
       todayPoints,
@@ -17358,7 +17358,7 @@ React keys must be passed directly to JSX without using spread:
       const store = load();
       store.settings = {
         sessionMinutes: args.sessionMinutes,
-        cooldownMinutes: 5,
+        cooldownMinutes: 3,
         challengeMode: args.challengeMode
       };
       save(store);
@@ -17409,7 +17409,7 @@ React keys must be passed directly to JSX without using spread:
         store.session = {
           startedAt: null,
           limitMinutes: null,
-          cooldownUntil: new Date(Date.now() + 300000).toISOString()
+          cooldownUntil: new Date(Date.now() + 180000).toISOString()
         };
         save(store);
       }
@@ -19369,7 +19369,7 @@ React keys must be passed directly to JSX without using spread:
     return ce("div", { className: "fixed inset-0 flex items-center justify-center px-4", style: { background: "rgba(0,0,0,0.55)", zIndex: 50 }, role: "dialog", "aria-modal": "true", "aria-label": "答えを見る確認" },
       ce("div", { className: "w-full rounded-2xl p-5 shadow-lg", style: { background: "var(--surface)", maxWidth: 380 } },
         ce("p", { className: "font-display text-lg font-extrabold" }, "答えを見ますか？"),
-        ce("p", { className: "mt-2 text-sm leading-relaxed" }, practice ? "答えを見ると、この練習問題は終了します。クールダウンはかかりません。見ますか？" : "答えを見ると失敗扱いになり、5分のロック（クールダウン）がかかります。見ますか？"),
+        ce("p", { className: "mt-2 text-sm leading-relaxed" }, practice ? "答えを見ると、この練習問題は終了します。クールダウンはかかりません。見ますか？" : "答えを見ると失敗扱いになり、3分のロック（クールダウン）がかかります。見ますか？"),
         ce("div", { className: "mt-4 flex gap-2" },
           ce("button", { type: "button", onClick: onConfirm, className: "font-display flex-1 rounded-full py-3 text-base font-extrabold text-white", style: { background: "#f4212e" } }, "見る"),
           ce("button", { type: "button", onClick: onCancel, className: "font-display flex-1 rounded-full py-3 text-base font-extrabold", style: { border: "2px solid var(--border)", background: "var(--surface)" } }, "やめる"))));
@@ -21539,7 +21539,7 @@ React keys must be passed directly to JSX without using spread:
       onSuccess: () => queryClient.invalidateQueries({ queryKey: ["state"] })
     });
     const data = state.data;
-    const settings = data?.settings ?? { sessionMinutes: 5, cooldownMinutes: 5, challengeMode: "random" };
+    const settings = data?.settings ?? { sessionMinutes: 5, cooldownMinutes: 3, challengeMode: "random" };
     const extensionsToday = data?.todayExtensions ?? 0;
     const startGate = (gate, practiceType) => {
       let type;
@@ -22173,7 +22173,7 @@ React keys must be passed directly to JSX without using spread:
       onSuccess: () => queryClient.invalidateQueries({ queryKey: ["state"] })
     });
     const [sessionMinutes, setSessionMinutes] = import_react4.useState(data.settings.sessionMinutes);
-    const cooldownMinutes = 5;
+    const cooldownMinutes = 3;
     const [challengeMode, setChallengeMode] = import_react4.useState(() => sanitizeChallengeMode(data.settings.challengeMode));
     const [saved, setSaved] = import_react4.useState(false);
     const [confirmReset, setConfirmReset] = import_react4.useState(false);
@@ -22370,7 +22370,7 @@ React keys must be passed directly to JSX without using spread:
                     }, undefined, false, undefined, this),
                     /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
                       className: "mt-1.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-3 text-base",
-                      children: "5分（固定）"
+                      children: "3分（固定）"
                     }, undefined, false, undefined, this)
                   ]
                 }, undefined, true, undefined, this),
