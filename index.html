@@ -17274,7 +17274,7 @@ React keys must be passed directly to JSX without using spread:
   var STORE_KEY = "gatekeeper-home-v1";
   function defaultStore() {
     return {
-      settings: { sessionMinutes: 10, cooldownMinutes: 3, challengeMode: "random" },
+      settings: { sessionMinutes: 10, cooldownMinutes: 3, challengeMode: "random", rhythmOffsetMs: 0, rhythmOffsetOn: false },
       session: { startedAt: null, limitMinutes: null, cooldownUntil: null },
       events: [],
       nextId: 1,
@@ -17303,6 +17303,20 @@ React keys must be passed directly to JSX without using spread:
             }
             p.sessionDefaultV3 = true;
             p.sessionDefaultV10 = true;
+            dirty = true;
+          }
+          if (typeof p.settings.rhythmOffsetMs !== "number" || !isFinite(p.settings.rhythmOffsetMs)) {
+            p.settings.rhythmOffsetMs = 0;
+            dirty = true;
+          } else {
+            const clampedOffset = Math.max(-300, Math.min(300, Math.round(p.settings.rhythmOffsetMs)));
+            if (clampedOffset !== p.settings.rhythmOffsetMs) {
+              p.settings.rhythmOffsetMs = clampedOffset;
+              dirty = true;
+            }
+          }
+          if (typeof p.settings.rhythmOffsetOn !== "boolean") {
+            p.settings.rhythmOffsetOn = p.settings.rhythmOffsetMs !== 0;
             dirty = true;
           }
           if (dirty)
@@ -17371,11 +17385,20 @@ React keys must be passed directly to JSX without using spread:
     },
     async saveSettings(args) {
       const store = load();
+      const resolvedOffsetMs = typeof args.rhythmOffsetMs === "number" && isFinite(args.rhythmOffsetMs) ? Math.max(-300, Math.min(300, Math.round(args.rhythmOffsetMs))) : typeof store.settings.rhythmOffsetMs === "number" && isFinite(store.settings.rhythmOffsetMs) ? Math.max(-300, Math.min(300, Math.round(store.settings.rhythmOffsetMs))) : 0;
       store.settings = {
         sessionMinutes: args.sessionMinutes,
         cooldownMinutes: 3,
-        challengeMode: args.challengeMode
+        challengeMode: args.challengeMode,
+        rhythmOffsetMs: resolvedOffsetMs,
+        rhythmOffsetOn: typeof args.rhythmOffsetOn === "boolean" ? args.rhythmOffsetOn : typeof store.settings.rhythmOffsetOn === "boolean" ? store.settings.rhythmOffsetOn : resolvedOffsetMs !== 0
       };
+      save(store);
+      return { ok: true };
+    },
+    async setRhythmOffsetOn(args) {
+      const store = load();
+      store.settings.rhythmOffsetOn = !!args.on;
       save(store);
       return { ok: true };
     },
@@ -18794,10 +18817,14 @@ React keys must be passed directly to JSX without using spread:
   var patternHitSound = (e) => toneSound(e);
   var tapOkSound = (e) => snareSound(e);
   var tapBadSound = (e) => tomSound(e, 95);
-  function RhythmChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose, cid }) {
+  function RhythmChallenge({ band, onFinish, gate, failRevealSeq, onAnswerClose, cid, rhythmOffsetMs, rhythmOffsetOn }) {
     const bpm = rhythmBpm(band);
     const tolerance = band >= 6 ? 0.55 : RHYTHM_TOLERANCE;
     const stepMs = 60000 / bpm / 2;
+    const savedOffsetMs = typeof rhythmOffsetMs === "number" && isFinite(rhythmOffsetMs) ? Math.max(-300, Math.min(300, rhythmOffsetMs)) : 0;
+    const [offsetOn, setOffsetOn] = import_react3.useState(() => typeof rhythmOffsetOn === "boolean" ? rhythmOffsetOn : savedOffsetMs !== 0);
+    const offsetMs = offsetOn ? savedOffsetMs : 0;
+    const offsetLabel = savedOffsetMs > 0 ? `+${savedOffsetMs}ms` : savedOffsetMs < 0 ? `−${Math.abs(savedOffsetMs)}ms` : "0ms";
     const savedRhythm = import_react3.useMemo(() => loadGameState("rhythm", cid, band), [cid, band]);
     const pattern = import_react3.useMemo(() => {
       if (savedRhythm && Array.isArray(savedRhythm.pattern) && savedRhythm.pattern.length === RHYTHM_STEPS)
@@ -18809,6 +18836,10 @@ React keys must be passed directly to JSX without using spread:
     }, [cid, band, pattern]);
     const hitCount = import_react3.useMemo(() => pattern.filter(Boolean).length, [pattern]);
     const listenSteps = RHYTHM_STEPS;
+    const [started, setStarted] = import_react3.useState(false);
+    const startedRef = import_react3.useRef(false);
+    const offsetRef = import_react3.useRef(offsetMs);
+    offsetRef.current = offsetMs;
     const [step, setStep] = import_react3.useState(-1);
     const [matched, setMatched] = import_react3.useState(() => Array(RHYTHM_STEPS).fill(false));
     const [extraSteps, setExtraSteps] = import_react3.useState([]);
@@ -18840,10 +18871,33 @@ React keys must be passed directly to JSX without using spread:
     };
     const finishRefGame = import_react3.useRef(finishGame);
     finishRefGame.current = finishGame;
+    const startPlayback = () => {
+      if (startedRef.current || doneRef.current)
+        return;
+      startedRef.current = true;
+      if (!engineRef.current) {
+        const eng = createAudioEngine();
+        engineRef.current = eng;
+      }
+      if (engineRef.current)
+        engineRef.current.ctx.resume().catch(() => {
+          return;
+        });
+      setStarted(true);
+    };
+    const toggleOffset = () => {
+      const next = !offsetOn;
+      setOffsetOn(next);
+      api.setRhythmOffsetOn({ on: next }).catch(() => {
+        return;
+      });
+    };
     import_react3.useEffect(() => {
       if (failRevealSeq)
         return;
-      const engine = createAudioEngine();
+      if (!started)
+        return;
+      const engine = engineRef.current ?? createAudioEngine();
       engineRef.current = engine;
       if (engine)
         engine.ctx.resume().catch(() => {
@@ -18870,7 +18924,7 @@ React keys must be passed directly to JSX without using spread:
         }
         if (!doneRef.current && s >= listenSteps + RHYTHM_COUNT_STEPS) {
           const playStart = startRef.current + (listenSteps + RHYTHM_COUNT_STEPS) * stepMs;
-          const pos = (now - playStart) / stepMs;
+          const pos = (now - offsetRef.current - playStart) / stepMs;
           let changed = false;
           for (let i = 0;i < RHYTHM_STEPS; i++) {
             if (pattern[i] && !matchedRef.current.has(i) && !missedRef.current.has(i) && pos > i + tolerance) {
@@ -18885,7 +18939,7 @@ React keys must be passed directly to JSX without using spread:
             if (total > RHYTHM_MAX_MISS)
               finishRefGame.current(false);
           }
-          if (now > playStart + RHYTHM_STEPS * stepMs + stepMs * 0.6) {
+          if (now - offsetRef.current > playStart + RHYTHM_STEPS * stepMs + stepMs * 0.6) {
             const total = missedRef.current.size + extraRef.current;
             finishRefGame.current(total <= RHYTHM_MAX_MISS);
           }
@@ -18899,14 +18953,18 @@ React keys must be passed directly to JSX without using spread:
           engine.ctx.close().catch(() => {
             return;
           });
+        if (engineRef.current === engine)
+          engineRef.current = null;
       };
-    }, []);
+    }, [started]);
     const onTap = () => {
       if (doneRef.current)
         return;
+      if (!startedRef.current)
+        return;
       const now = performance.now();
       const playStart = startRef.current + (listenSteps + RHYTHM_COUNT_STEPS) * stepMs;
-      const pos = (now - playStart) / stepMs;
+      const pos = (now - offsetRef.current - playStart) / stepMs;
       if (pos < -tolerance)
         return;
       if (pos > RHYTHM_STEPS)
@@ -19073,7 +19131,7 @@ React keys must be passed directly to JSX without using spread:
           children: [
             /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
               className: "font-bold text-[var(--text)]",
-              children: phase === "listen" ? "聞いて覚えよう（1回だけ）" : phase === "count" ? "カウントイン" : `ヒット ${matchedCount} / ${hitCount}`
+              children: !started ? "スタート待ち" : phase === "listen" ? "聞いて覚えよう（1回だけ）" : phase === "count" ? "カウントイン" : `ヒット ${matchedCount} / ${hitCount}`
             }, undefined, false, undefined, this),
             /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
               className: "text-[var(--dim)]",
@@ -19149,7 +19207,21 @@ React keys must be passed directly to JSX without using spread:
             children: judgement.text
           }, judgement.key, false, undefined, this)
         }, undefined, false, undefined, this),
-        phase === "listen" ? /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+        phase === "listen" && !started ? /* @__PURE__ */ jsx_dev_runtime.jsxDEV("button", {
+          type: "button",
+          onClick: startPlayback,
+          className: "font-display flex h-36 w-full flex-col items-center justify-center rounded-3xl bg-[var(--accent)] text-white active:scale-[0.98]",
+          children: [
+            /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+              className: "text-2xl font-extrabold",
+              children: "タップしてスタート"
+            }, undefined, false, undefined, this),
+            /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+              className: "mt-2 px-4 text-center text-sm font-bold",
+              children: "押すとリズムが1回だけ流れます"
+            }, undefined, false, undefined, this)
+          ]
+        }, undefined, true, undefined, this) : phase === "listen" ? /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
           className: "flex h-36 flex-col items-center justify-center rounded-3xl bg-[var(--surface2)]",
           children: [
             /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
@@ -19201,9 +19273,39 @@ React keys must be passed directly to JSX without using spread:
           className: "font-display h-36 w-full rounded-3xl bg-[var(--accent)] text-3xl font-extrabold text-white active:scale-[0.98]",
           children: "TAP"
         }, undefined, false, undefined, this),
+        !started && /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
+          className: "mt-3 flex items-center justify-center gap-3",
+          children: [
+            /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+              className: "text-sm font-bold text-[var(--text)]",
+              children: [
+                "音ズレ補正 ",
+                offsetLabel
+              ]
+            }, undefined, true, undefined, this),
+            /* @__PURE__ */ jsx_dev_runtime.jsxDEV("button", {
+              type: "button",
+              role: "switch",
+              "aria-checked": offsetOn,
+              "aria-label": `音ズレ補正のオン・オフ（補正値 ${offsetLabel}）`,
+              onClick: toggleOffset,
+              className: "relative h-8 w-14 shrink-0 rounded-full",
+              style: { background: offsetOn ? "var(--accent)" : "var(--border)", transition: "background 0.15s" },
+              children: /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+                className: "absolute top-1 block h-6 w-6 rounded-full bg-white shadow",
+                style: { left: offsetOn ? 26 : 4, transition: "left 0.15s" },
+                "aria-hidden": true
+              }, undefined, false, undefined, this)
+            }, undefined, false, undefined, this),
+            /* @__PURE__ */ jsx_dev_runtime.jsxDEV("span", {
+              className: "text-sm font-bold text-[var(--dim)]",
+              children: offsetOn ? "ON" : "OFF"
+            }, undefined, false, undefined, this)
+          ]
+        }, undefined, true, undefined, this),
         /* @__PURE__ */ jsx_dev_runtime.jsxDEV("p", {
           className: "mt-2 text-center text-xs text-[var(--dim)]",
-          children: phase === "listen" ? "音と光で、光るタイミングを覚えよう。リズムは1回だけ流れます。" : phase === "count" ? "次の小節頭から本番。ボタンはもう押せます。最初の打点は少し早めに叩いても、判定の範囲内ならヒットになります（範囲外のタップはミスになりません）。" : "さっきのリズムを思い出して、同じタイミングでTAP！見逃しと余計なタップはミスです。"
+          children: !started ? "スタートを押すまで時間は進みません。音量を確認してから押してください。" : phase === "listen" ? "音と光で、光るタイミングを覚えよう。リズムは1回だけ流れます。" : phase === "count" ? "次の小節頭から本番。ボタンはもう押せます。最初の打点は少し早めに叩いても、判定の範囲内ならヒットになります（範囲外のタップはミスになりません）。" : "さっきのリズムを思い出して、同じタイミングでTAP！見逃しと余計なタップはミスです。"
         }, undefined, false, undefined, this),
         /* @__PURE__ */ jsx_dev_runtime.jsxDEV("div", {
           className: "mt-4 text-center",
@@ -21330,8 +21432,8 @@ React keys must be passed directly to JSX without using spread:
   }
 
   // ---------- Word quizzes (English words / Kanji readings) ----------
-  var QUIZ_CONF = { 1: { time: 90 }, 2: { time: 120 }, 3: { time: 150 } };
-  var QUIZ_COUNT = 10;
+  var QUIZ_CONF = { 1: { time: 60 }, 2: { time: 60 }, 3: { time: 60 } };
+  var QUIZ_COUNT = 3;
   var QUIZ_MISS_LIMIT = 3;
   // Each entry: [question, correct, wrong1, wrong2, wrong3]
   var ENGQUIZ_BANK = {
@@ -21496,7 +21598,7 @@ React keys must be passed directly to JSX without using spread:
   };
 
   function quizBuildItems(bank, band) {
-    const pool = bank[band] || bank[1];
+    const pool = bank[3] || bank[1];
     return shuffle(pool).slice(0, QUIZ_COUNT).map((e) => {
       const opts = shuffle([e[1], e[2], e[3], e[4]]);
       return { q: e[0], ans: e[1], opts, ci: opts.indexOf(e[1]) };
@@ -21581,7 +21683,7 @@ React keys must be passed directly to JSX without using spread:
     if (revealed) {
       return ce("div", null,
         ce("p", { className: "font-display mb-2 text-lg font-extrabold" }, "答え一覧"),
-        ce("p", { className: "mb-3 text-sm leading-relaxed" }, isEng ? "出題された10問の英単語と、その正しい意味です。" : "出題された10問の熟語と、その正しい読みです。"),
+        ce("p", { className: "mb-3 text-sm leading-relaxed" }, isEng ? "出題された3問の英単語と、その正しい意味です。" : "出題された3問の熟語と、その正しい読みです。"),
         ce("ol", { className: "list-decimal space-y-1.5 pl-5 text-sm leading-relaxed" },
           items.map((it, k) => ce("li", { key: k }, ce("span", { className: "font-display font-extrabold" }, it.q), " → ", it.ans))),
         revealCloseBtn(failReveal ? onAnswerClose : closeWithFail, failReveal ? "失敗画面に戻る" : undefined)
@@ -21592,7 +21694,7 @@ React keys must be passed directly to JSX without using spread:
       ce("div", { className: "mb-3 flex items-center justify-between" },
         ce("span", { className: "text-sm font-bold" }, "ミス ", ce("span", { style: { color: "#f4212e" } }, "●".repeat(misses)), ce("span", { style: { color: "var(--border)" } }, "●".repeat(Math.max(0, QUIZ_MISS_LIMIT - misses)))),
         ce("span", { className: "text-sm font-bold" }, `正解 ${idx + (pickedOk ? 1 : 0)} 問`)),
-      ce("p", { className: "mb-3 text-sm leading-relaxed" }, isEng ? "英単語の意味として正しいものを1つ選んでください。全10問に正解すればクリア、ミス3回で失敗です。" : "熟語の読み（ひらがな）として正しいものを1つ選んでください。全10問に正解すればクリア、ミス3回で失敗です。"),
+      ce("p", { className: "mb-3 text-sm leading-relaxed" }, isEng ? "英単語の意味として正しいものを1つ選んでください。全3問に正解すればクリア、ミス3回で失敗です。" : "熟語の読み（ひらがな）として正しいものを1つ選んでください。全3問に正解すればクリア、ミス3回で失敗です。"),
       ce("div", { className: "mb-4 rounded-2xl py-6 text-center", style: { background: "var(--surface2)" } },
         ce("span", { className: "font-display font-extrabold", style: { fontSize: isEng ? 34 : 40 } }, cur.q)),
       ce("div", { className: "grid gap-2" },
@@ -21893,7 +21995,9 @@ React keys must be passed directly to JSX without using spread:
     milestoneMax,
     failRevealSeq,
     onAnswerClose,
-    cid
+    cid,
+    rhythmOffsetMs,
+    rhythmOffsetOn
   }) {
     if (type === "shogi")
       return /* @__PURE__ */ jsx_dev_runtime.jsxDEV(ShogiChallenge, {
@@ -22012,7 +22116,9 @@ React keys must be passed directly to JSX without using spread:
       gate,
       failRevealSeq,
       onAnswerClose,
-      cid
+      cid,
+      rhythmOffsetMs,
+      rhythmOffsetOn
     }, undefined, false, undefined, this);
   }
 
@@ -22036,7 +22142,7 @@ React keys must be passed directly to JSX without using spread:
   function goalText(type, level, band) {
     if (type === "rhythm") {
       const [lo, hi] = rhythmHitRange(band);
-      return `2小節（8拍）のリズムを、音と光で1回だけ聞かせます。そのあと1小節（4拍）のカウントインが入ってから、続く2小節でクリックの拍に合わせて大きなTAPボタンを叩き、同じリズムを再現してください。カウントイン中もボタンは押せて、最初の打点は少し早めでも判定の範囲内ならヒットになります。打点は${lo}〜${hi}か所。見逃しと余計なタップはミスになり、ミス3回で失敗です。`;
+      return `2小節（8拍）のリズムを、音と光で1回だけ聞かせます。そのあと1小節（4拍）のカウントインが入ってから、続く2小節でクリックの拍に合わせて大きなTAPボタンを叩き、同じリズムを再現してください。カウントイン中もボタンは押せて、最初の打点は少し早めでも判定の範囲内ならヒットになります。打点は${lo}〜${hi}か所。見逃しと余計なタップはミスになり、ミス3回で失敗です。リズムの再生は、チャレンジ画面で「タップしてスタート」を押してから始まります。`;
     }
     if (type === "rush")
       return `6×6の盤面で車をドラッグして前後にスライドさせ、赤い車（自車）を右端の出口まで到達させればクリアです。制限時間は帯により90〜180秒。「1手戻す」「最初から」ボタンで立て直せます。問題は全問ソルバー（BFS）で解けることと最短手数を確認済みのプールから出題します（易しい帯：最短7〜13手／普通帯：17〜26手／難しい帯：30手以上）。`;
@@ -22057,9 +22163,9 @@ React keys must be passed directly to JSX without using spread:
     if (type === "hanoi")
       return `棒をタップして一番上の円盤を持ち上げ、移したい棒をタップして置きます。1回に動かせるのは1枚だけで、小さい円盤の上に大きい円盤は置けません。すべての円盤を別の棒へ移し終えればクリアです。手数と最小手数（2のn乗−1）を表示します。制限時間は帯により60〜180秒（易しい帯：円盤3枚／普通帯：4枚／難しい帯：5枚）。`;
     if (type === "engquiz")
-      return `英単語の意味を4択から選ぶクイズです。全10問に正解すればクリアで、間違えた選択肢は選べなくなります。ミス3回で失敗です。制限時間は帯により90〜150秒（易しい帯：中学レベル／普通帯：高校レベル／難しい帯：大学・TOEICレベル）。`;
+      return `英単語の意味を4択から選ぶクイズです。全3問に正解すればクリアで、間違えた選択肢は選べなくなります。ミス3回で失敗です。出題は大学・TOEICレベル（最難関）のみで、制限時間は60秒です。帯を選んでも内容は変わりません。`;
     if (type === "kanjiquiz")
-      return `漢字の熟語の読み（ひらがな）を4択から選ぶクイズです。全10問に正解すればクリアで、間違えた選択肢は選べなくなります。ミス3回で失敗です。制限時間は帯により90〜150秒（易しい帯：常用の易しい熟語／普通帯：やや難しい読み／難しい帯：難読漢字）。`;
+      return `漢字の熟語の読み（ひらがな）を4択から選ぶクイズです。全3問に正解すればクリアで、間違えた選択肢は選べなくなります。ミス3回で失敗です。出題は難読漢字（最難関）のみで、制限時間は60秒です。帯を選んでも内容は変わりません。`;
     return `詰将棋は9×9のフル盤面で、毎手王手の詰将棋（3手詰め／5手詰め）を解けば合格です。間違えた手は無効になり、その場で指し直せますが、間違えた手1回でミス1回、ミス3回で失敗です（「最初からやり直す」でもミス回数はリセットされません）。問題は3手詰め491問と5手詰め99問の全590問から等確率で出題します。5回ごとの節目回では5手詰め（99問）だけから出題されます。`;
   }
   function practiceLevelsFor(type) {
@@ -22089,9 +22195,9 @@ React keys must be passed directly to JSX without using spread:
     if (type === "numlink")
       return ["6×6・5ペア／制限時間90秒", "7×7・6ペア／制限時間120秒", "8×8・8ペア／制限時間180秒"][level - 1] ?? "";
     if (type === "engquiz")
-      return ["中学レベル／10問／制限時間90秒", "高校レベル／10問／制限時間120秒", "大学・TOEICレベル／10問／制限時間150秒"][level - 1] ?? "";
+      return ["大学・TOEICレベル／3問／制限時間60秒", "大学・TOEICレベル／3問／制限時間60秒", "大学・TOEICレベル／3問／制限時間60秒"][level - 1] ?? "";
     if (type === "kanjiquiz")
-      return ["常用の易しい熟語／10問／制限時間90秒", "やや難しい読み／10問／制限時間120秒", "難読漢字／10問／制限時間150秒"][level - 1] ?? "";
+      return ["難読漢字／3問／制限時間60秒", "難読漢字／3問／制限時間60秒", "難読漢字／3問／制限時間60秒"][level - 1] ?? "";
     if (type === "slide")
       return ["3×3・シャッフル少なめ／制限時間120秒", "3×3・シャッフル多め／制限時間120秒", "4×4／制限時間180秒"][level - 1] ?? "";
     if (type === "hanoi")
@@ -22231,7 +22337,7 @@ React keys must be passed directly to JSX without using spread:
       onSuccess: () => queryClient.invalidateQueries({ queryKey: ["state"] })
     });
     const data = state.data;
-    const settings = data?.settings ?? { sessionMinutes: 10, cooldownMinutes: 3, challengeMode: "random" };
+    const settings = data?.settings ?? { sessionMinutes: 10, cooldownMinutes: 3, challengeMode: "random", rhythmOffsetMs: 0, rhythmOffsetOn: false };
     const extensionsToday = data?.todayExtensions ?? 0;
     const startGate = (gate, practiceType) => {
       let type;
@@ -22592,7 +22698,9 @@ React keys must be passed directly to JSX without using spread:
                     milestoneMax: flow.milestone,
                     failRevealSeq: failAnswerSeq,
                     onAnswerClose: () => setShowFailAnswer(false),
-                    cid: flow.cid
+                    cid: flow.cid,
+                    rhythmOffsetMs: typeof settings.rhythmOffsetMs === "number" && isFinite(settings.rhythmOffsetMs) ? settings.rhythmOffsetMs : 0,
+                    rhythmOffsetOn: typeof settings.rhythmOffsetOn === "boolean" ? settings.rhythmOffsetOn : undefined
                   }, `${flow.type}-${flow.level}-${flow.band}`, false, undefined, this)
                 }, undefined, false, undefined, this),
                 flow.phase === "playing" && flow.gate !== "practice" && !flow.rerolled && !CHALLENGE_TYPES.includes(settings.challengeMode) && /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
@@ -22876,12 +22984,14 @@ React keys must be passed directly to JSX without using spread:
     const [sessionMinutes, setSessionMinutes] = import_react4.useState(data.settings.sessionMinutes);
     const cooldownMinutes = 3;
     const [challengeMode, setChallengeMode] = import_react4.useState(() => sanitizeChallengeMode(data.settings.challengeMode));
+    const [rhythmOffsetMs, setRhythmOffsetMs] = import_react4.useState(() => typeof data.settings.rhythmOffsetMs === "number" && isFinite(data.settings.rhythmOffsetMs) ? Math.max(-300, Math.min(300, Math.round(data.settings.rhythmOffsetMs))) : 0);
     const [saved, setSaved] = import_react4.useState(false);
     const [confirmReset, setConfirmReset] = import_react4.useState(false);
     import_react4.useEffect(() => {
       setSessionMinutes(data.settings.sessionMinutes);
       setChallengeMode(sanitizeChallengeMode(data.settings.challengeMode));
-    }, [data.settings.sessionMinutes, data.settings.challengeMode]);
+      setRhythmOffsetMs(typeof data.settings.rhythmOffsetMs === "number" && isFinite(data.settings.rhythmOffsetMs) ? Math.max(-300, Math.min(300, Math.round(data.settings.rhythmOffsetMs))) : 0);
+    }, [data.settings.sessionMinutes, data.settings.challengeMode, data.settings.rhythmOffsetMs]);
     return /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
       className: "pt-5",
       children: [
@@ -23147,6 +23257,90 @@ React keys must be passed directly to JSX without using spread:
                       ]
                     }, undefined, true, undefined, this)
                   ]
+                }, undefined, true, undefined, this),
+                /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                  children: [
+                    /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                      className: "flex items-center justify-between",
+                      children: [
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("label", {
+                          htmlFor: "rhythm-offset",
+                          className: "text-sm font-bold",
+                          children: "リズムの音ズレ補正"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("span", {
+                          className: "font-display text-base font-extrabold tabular-nums",
+                          "aria-live": "polite",
+                          children: rhythmOffsetMs > 0 ? `+${rhythmOffsetMs}ms` : rhythmOffsetMs < 0 ? `−${Math.abs(rhythmOffsetMs)}ms` : "0ms"
+                        }, undefined, false, undefined, this)
+                      ]
+                    }, undefined, true, undefined, this),
+                    /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                      className: "mt-2 flex items-center gap-2",
+                      children: [
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
+                          type: "button",
+                          onClick: () => setRhythmOffsetMs((v) => Math.max(-300, v - 10)),
+                          className: "font-display min-w-9 rounded-full px-2 py-2 text-sm font-extrabold",
+                          style: { border: "2px solid var(--border)", background: "var(--surface)" },
+                          "aria-label": "補正を10ミリ秒減らす",
+                          children: "−10"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("input", {
+                          id: "rhythm-offset",
+                          type: "range",
+                          min: -300,
+                          max: 300,
+                          step: 5,
+                          value: rhythmOffsetMs,
+                          onChange: (e) => setRhythmOffsetMs(Number(e.target.value)),
+                          className: "min-w-0 flex-1",
+                          style: { accentColor: "var(--accent)" },
+                          "aria-label": "リズムの音ズレ補正（ミリ秒）"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
+                          type: "button",
+                          onClick: () => setRhythmOffsetMs((v) => Math.min(300, v + 10)),
+                          className: "font-display min-w-9 rounded-full px-2 py-2 text-sm font-extrabold",
+                          style: { border: "2px solid var(--border)", background: "var(--surface)" },
+                          "aria-label": "補正を10ミリ秒増やす",
+                          children: "+10"
+                        }, undefined, false, undefined, this)
+                      ]
+                    }, undefined, true, undefined, this),
+                    /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("p", {
+                      className: "mt-1.5 text-xs leading-relaxed text-[var(--dim)]",
+                      children: "Bluetoothイヤホンなどで音が遅れて聞こえる場合、プラス側に調整すると、遅めにタップしても正しいタイミングとして判定します。まずは +150ms 前後から試してみてください。"
+                    }, undefined, false, undefined, this),
+                    /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("div", {
+                      className: "mt-2 flex flex-wrap gap-2",
+                      children: [
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
+                          type: "button",
+                          onClick: () => setRhythmOffsetMs(0),
+                          className: "font-display rounded-full px-3 py-2 text-sm font-extrabold",
+                          style: { border: "2px solid var(--border)", background: "var(--surface)", color: "var(--dim)" },
+                          children: "0に戻す"
+                        }, undefined, false, undefined, this),
+                        /* @__PURE__ */ jsx_dev_runtime2.jsxDEV("button", {
+                          type: "button",
+                          disabled: saveSettings.isPending,
+                          onClick: () => {
+                            setSaved(false);
+                            saveSettings.mutate({
+                              sessionMinutes,
+                              cooldownMinutes,
+                              challengeMode,
+                              rhythmOffsetMs
+                            }, { onSuccess: () => onPractice("rhythm") });
+                          },
+                          className: "font-display rounded-full px-3 py-2 text-sm font-extrabold text-white disabled:opacity-40",
+                          style: { background: "var(--accent)" },
+                          children: "保存して練習で試す"
+                        }, undefined, false, undefined, this)
+                      ]
+                    }, undefined, true, undefined, this)
+                  ]
                 }, undefined, true, undefined, this)
               ]
             }, undefined, true, undefined, this),
@@ -23158,7 +23352,8 @@ React keys must be passed directly to JSX without using spread:
                 saveSettings.mutate({
                   sessionMinutes,
                   cooldownMinutes,
-                  challengeMode
+                  challengeMode,
+                  rhythmOffsetMs
                 }, { onSuccess: () => setSaved(true) });
               },
               className: "font-display mt-4 w-full rounded-full bg-[var(--text)] py-3 text-base font-extrabold text-[var(--bg)]",
